@@ -41,6 +41,25 @@ CHOG969 transforms Chog NFTs into playable, deterministic 60-second top-down arc
 | **Aura** | Global Chaos Modifier | **Flame** (periodic falling meteor hazards with telegraphs) • **Glitch** (momentary synaptic inverted controls) • **Gold** (+50% Midas score boost) • **None** (clean equilibrium) |
 | **Tier** | Difficulty & Multiplier | **Common** (1.0x score) • **Rare** (1.5x score) • **Epic** (2.2x score) • **Legendary** (3.5x score multiplier) |
 
+### 🌟 Inherent Avatar Signature Skills
+Every Chog character possesses a unique inherent hero ability derived from its metadata DNA:
+- **Cyber Chog Prime (#969)**: *Overclocked Cyber Ward* — Aegis invulnerability reflecting incoming fire.
+- **Glitch Void Spectre (#404)**: *Phase Warp Dash* — Quantum micro-teleport with phase damage immunity.
+- **Toxic Toad Marauder (#77)**: *Slime Shock Nova* — 360° seismic detonation knocking back swarms.
+- **Neon Synth Stalker (#1337)**: *Chrono Phase Shift* — Speed surge with local chronofield enemy slow.
+- **Frost Yeti Warden (#42)**: *Cryo Shield Aegis* — High-capacity kinetic absorption barrier.
+- **Golden Monarch (#1969)**: *Midas Sovereign Overload* — Blinding golden blast vaporizing foes into bonus gems.
+
+### ⚡ Field Skill Drops & Milestone Boss Encounter
+- **6 Droppable Bonus Skills**: Defeating enemy swarms can yield illuminated skill orbs:
+  - ⚡ **Tesla Chain Arc** (Chain lightning hits up to 4 targets)
+  - 🛡️ **Orbital Deflectors** (Dual energy shields shredding foes on contact)
+  - 🚀 **Micro-Missiles** (Homing rocket salvos tracking highest-threat targets)
+  - ❄️ **Cryo Blast** (Freezes all on-screen enemies in frost stasis for 2.5s)
+  - ⏱️ **Adrenaline Overdrive** (+45% movement speed and +35% fire rate)
+  - 🧲 **Graviton Magnet** (Vaccum pulls all distant score gems across the arena)
+- **30s Void Colossus Boss**: At the 30-second mark, a giant Void Colossus emerges with a dedicated glowing HUD Boss Health Bar and 10-way radial bullet barrages. Defeating the Colossus yields guaranteed rare skill drops and massive bonus score gems.
+
 ### Deterministic Seed Generation
 ```typescript
 seed = hashStringToSeed(`token:${tokenId}|traits:${normalizedSortedTraits}`);

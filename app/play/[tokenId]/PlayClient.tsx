@@ -596,12 +596,27 @@ export default function PlayClient({
                 <span>RESTART [R]</span>
               </button>
 
+              {(() => {
+                const demoIds = [969, 404, 77, 1337, 42, 1969];
+                const currentIdx = demoIds.indexOf(initialChog.tokenId);
+                const nextTokenId = currentIdx !== -1 ? demoIds[(currentIdx + 1) % demoIds.length] : demoIds[0];
+                return (
+                  <Link
+                    href={`/play/${nextTokenId}`}
+                    className="flex w-full items-center justify-center space-x-2 rounded-xl border border-purple-500/40 bg-purple-950/20 py-2 px-4 font-mono text-xs font-bold text-purple-300 hover:bg-purple-900/40 transition"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                    <span>NEXT CARTRIDGE #{nextTokenId} ▶</span>
+                  </Link>
+                );
+              })()}
+
               <Link
                 href="/browse"
                 className="flex w-full items-center justify-center space-x-2 rounded-xl bg-zinc-800/60 py-2 px-4 font-mono text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white transition"
               >
                 <Compass className="h-4 w-4" />
-                <span>TRY ANOTHER CHOG</span>
+                <span>ALL CARTRIDGES</span>
               </Link>
             </div>
           </div>

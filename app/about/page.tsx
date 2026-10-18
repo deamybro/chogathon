@@ -129,6 +129,16 @@ export default function AboutPage() {
                 <td className="px-4 py-3">Common, Rare, Epic, Legendary</td>
                 <td className="px-4 py-3">Difficulty escalation and score multiplier scaling (up to 3.5x).</td>
               </tr>
+              <tr>
+                <td className="px-4 py-3 font-bold text-orange-400">Avatar Signature</td>
+                <td className="px-4 py-3">Inherent Character Skills</td>
+                <td className="px-4 py-3">Each Chog avatar commands a unique signature hero ability (Cyber Ward, Phase Warp, Slime Nova, Chrono Shift, Cryo Aegis, Midas Overload).</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-bold text-cyan-400">Field Drops & Bosses</td>
+                <td className="px-4 py-3">Lootable Orbs & Void Colossus</td>
+                <td className="px-4 py-3">Enemies drop 6 stackable bonus skill orbs (Tesla Arc, Orbitals, Missiles, Cryo, Overdrive, Magnet). At 30s, the Void Colossus emerges with radial barrages.</td>
+              </tr>
             </tbody>
           </table>
         </div>

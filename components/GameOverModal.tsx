@@ -143,21 +143,36 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
         </div>
 
         {/* Actions */}
-        <div className="mt-3 flex items-center space-x-3">
+        <div className="mt-3 flex flex-col sm:flex-row items-center gap-2">
           <button
             onClick={onRestart}
-            className="flex flex-1 items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3 px-4 font-mono text-xs font-bold text-black shadow-[0_0_20px_rgba(34,197,94,0.4)] transition hover:bg-emerald-400 active:scale-95"
+            className="flex flex-1 w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3 px-4 font-mono text-xs font-bold text-black shadow-[0_0_20px_rgba(34,197,94,0.4)] transition hover:bg-emerald-400 active:scale-95"
           >
             <RotateCcw className="h-4 w-4" />
             <span>PLAY AGAIN</span>
           </button>
 
+          {(() => {
+            const demoIds = [969, 404, 77, 1337, 42, 1969];
+            const currentIdx = demoIds.indexOf(results.tokenId);
+            const nextTokenId = currentIdx !== -1 ? demoIds[(currentIdx + 1) % demoIds.length] : demoIds[0];
+            return (
+              <Link
+                href={`/play/${nextTokenId}`}
+                className="flex items-center justify-center space-x-1.5 w-full sm:w-auto rounded-xl border border-purple-500/60 bg-purple-950/40 py-3 px-3.5 font-mono text-xs font-bold text-purple-300 hover:bg-purple-900/50 transition"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                <span>NEXT #{nextTokenId} ▶</span>
+              </Link>
+            );
+          })()}
+
           <Link
             href="/browse"
-            className="flex items-center space-x-1.5 rounded-xl border border-zinc-700 bg-zinc-900 py-3 px-4 font-mono text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:text-white transition"
+            className="flex items-center justify-center space-x-1.5 w-full sm:w-auto rounded-xl border border-zinc-700 bg-zinc-900 py-3 px-4 font-mono text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:text-white transition"
           >
             <Compass className="h-4 w-4" />
-            <span>TRY ANOTHER CHOG</span>
+            <span>ALL CHOGS</span>
           </Link>
         </div>
       </div>

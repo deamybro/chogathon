@@ -1054,14 +1054,15 @@ export class ChogScene extends Phaser.Scene {
         const points = Math.round(enemy.scoreValue * this.configData.difficulty.scoreMultiplier);
         this.score += points;
         this.callbacks.onScoreUpdate(this.score);
+        this.showScoreText(enemy.sprite.x, enemy.sprite.y, points, enemy.isBoss);
         this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 0xa855f7 : 0xef4444);
 
         // Spawn gem
         this.spawnGem(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 500 : 50);
 
-        // Chance to spawn skill drop (Guaranteed on Boss, 12% on normal enemies)
+        // Chance to spawn skill drop (Guaranteed on Boss, 14% on normal enemies)
         const skillDropRoll = this.rng.next();
-        if (enemy.isBoss || skillDropRoll < 0.12) {
+        if (enemy.isBoss || skillDropRoll < 0.14) {
           this.spawnSkillPickup(enemy.sprite.x, enemy.sprite.y);
         }
 
@@ -1070,6 +1071,9 @@ export class ChogScene extends Phaser.Scene {
           this.activeBoss = null;
           this.callbacks.onBossHpUpdate?.(null, 0, 0);
           this.callbacks.onComboAlert?.('BOSS VANQUISHED! +2,500');
+          this.cameras.main.shake(350, 0.02);
+          this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, 0xfacc15, 36);
+          this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, 0xa855f7, 24);
         }
 
         enemy.sprite.destroy();
@@ -1212,6 +1216,7 @@ export class ChogScene extends Phaser.Scene {
         soundSynth.playCoin();
         this.score += g.value;
         this.callbacks.onScoreUpdate(this.score);
+        this.showScoreText(g.sprite.x, g.sprite.y, g.value, g.value >= 500);
         g.sprite.destroy();
         this.gems.splice(i, 1);
       }
@@ -1335,6 +1340,26 @@ export class ChogScene extends Phaser.Scene {
       y: y - 30,
       alpha: 0,
       duration: 650,
+      onComplete: () => {
+        text.destroy();
+      },
+    });
+  }
+
+  private showScoreText(x: number, y: number, points: number, isMajor = false) {
+    const text = this.add.text(x, y - 8, `+${points.toLocaleString()}`, {
+      fontFamily: 'monospace',
+      fontSize: isMajor ? '15px' : '11px',
+      color: isMajor ? '#facc15' : '#34d399',
+      fontStyle: 'bold',
+    });
+    text.setOrigin(0.5);
+
+    this.tweens.add({
+      targets: text,
+      y: y - 34,
+      alpha: 0,
+      duration: 750,
       onComplete: () => {
         text.destroy();
       },
