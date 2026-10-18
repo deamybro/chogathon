@@ -270,6 +270,7 @@ export class ChogScene extends Phaser.Scene {
   private subBoss3Spawned = false;
   private mainBossSpawned = false;
   private bossSupernovaTimer = 0;
+  private lastSkillDropTime = 0;
 
   // Auto-Aim & Targeting Scrambler EMP state
   private autoAimEnabled = true;
@@ -742,14 +743,14 @@ export class ChogScene extends Phaser.Scene {
     this.abilityTimer = ab.cooldownSeconds;
 
     if (ab.key === 'crown') {
-      // Royal Aegis Barrier: invulnerable for 4s + restores 30 Shield + Holy Nova
+      // Royal Aegis Barrier: invulnerable for 4s + restores 20 Shield + Holy Nova
       this.isShielded = true;
       this.abilityActiveDuration = ab.durationSeconds;
-      this.playerShield = Math.min(this.playerMaxShield + 30, this.playerShield + 30);
+      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 20);
       this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
       this.playerShieldGlow.setAlpha(0.9);
       this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0xfacc15, 30);
-      this.callbacks.onChaosAlert('AEGIS SHIELD ENGAGED (+30 SHIELD)!');
+      this.callbacks.onChaosAlert('AEGIS SHIELD ENGAGED (+20 SHIELD)!');
 
       // Holy Aegis Nova
       this.enemies.forEach((enemy) => {
@@ -789,11 +790,11 @@ export class ChogScene extends Phaser.Scene {
       this.callbacks.onChaosAlert('TITAN SHOCKWAVE!');
     } else {
       // Emergency Stim: heal + restore shield
-      this.hp = Math.min(this.maxHp, this.hp + 45);
-      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 20);
+      this.hp = Math.min(this.maxHp, this.hp + 30);
+      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 15);
       this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
       this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x22c55e);
-      this.callbacks.onChaosAlert('NANO REPAIR: +45 HP & +20 SHIELD!');
+      this.callbacks.onChaosAlert('NANO REPAIR: +30 HP & +15 SHIELD!');
     }
 
     this.lastReportedAbilityCooldown = Math.ceil(this.abilityTimer);
@@ -907,12 +908,12 @@ export class ChogScene extends Phaser.Scene {
       }
       this.callbacks.onScoreUpdate(this.score);
     } else {
-      // Titan Fortress Overload: Colossal Aegis + 100 Overcharged Shield + Massive Pulse Discharges
+      // Titan Fortress Overload: Colossal Aegis + 40 Shield + 40 HP + Massive Pulse Discharges
       this.callbacks.onChaosAlert('⚡ TITAN FORTRESS OVERLOAD ENGAGED!');
       this.isShielded = true;
       this.abilityActiveDuration = this.ultimateMaxDuration;
-      this.hp = Math.min(this.maxHp, this.hp + 65);
-      this.playerShield = this.playerMaxShield + 100;
+      this.hp = Math.min(this.maxHp, this.hp + 40);
+      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 40);
       this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
       this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 45);
       this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0xfacc15, 30);
@@ -952,15 +953,9 @@ export class ChogScene extends Phaser.Scene {
       }
     }
 
-    // Shield passive regeneration (after 4.5s without taking damage)
+    // Shield & Vitality do NOT recover on their own (only specific skills recover small amounts)
     if (this.shieldRechargeDelayTimer > 0) {
       this.shieldRechargeDelayTimer -= dt;
-    } else if (this.playerShield < this.playerMaxShield && this.hp > 0) {
-      const prevShield = Math.floor(this.playerShield);
-      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 8 * dt);
-      if (Math.floor(this.playerShield) !== prevShield) {
-        this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
-      }
     }
 
     // Player shield glow visual feedback
@@ -1352,9 +1347,10 @@ export class ChogScene extends Phaser.Scene {
 
     if (type === 'vampire_heal') {
       soundSynth.playHeal();
-      this.hp = Math.min(this.maxHp, this.hp + 35);
-      this.callbacks.onHpUpdate(this.hp, this.maxHp);
-      this.showDamageText(this.playerContainer.x, this.playerContainer.y - 45, '+35 HP HEAL', true);
+      this.hp = Math.min(this.maxHp, this.hp + 25);
+      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 15);
+      this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
+      this.showDamageText(this.playerContainer.x, this.playerContainer.y - 45, '+25 HP | +15 SHIELD', true, '#34d399');
     } else if (type === 'speed_warp') {
       soundSynth.playSpeedWarp();
     } else if (type === 'midas_jackpot') {
@@ -1861,12 +1857,28 @@ export class ChogScene extends Phaser.Scene {
         this.spawnGem(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 500 : enemy.isSubBoss ? 250 : 50);
 
         // Guaranteed skill drop on Bosses & Sub-Bosses; scaled drop rate for normal enemies per level:
-        // Sector 1: 6%, Sector 2: 10%, Sector 3: 15%
-        const levelDropRates = [0.06, 0.10, 0.15];
-        const baseDropRate = levelDropRates[this.currentLevel - 1] ?? 0.10;
-        const isHighValue = enemy.isBoss || enemy.isSubBoss;
-        if (isHighValue || this.rng.next() < baseDropRate) {
-          this.spawnSkillPickup(enemy.sprite.x, enemy.sprite.y);
+        // Skill Crate Drops:
+        // Capped at max 4 crates on screen at any time.
+        // Rarity is significantly increased, and throttled if crates are already on screen.
+        const onScreenSkills = this.skillPickups.length;
+        const dropCooldownPassed = now - this.lastSkillDropTime >= 3500;
+
+        if (onScreenSkills < 4 && dropCooldownPassed) {
+          // Normal enemy drop rate: Sector 1: 2.5%, Sector 2: 4%, Sector 3: 5.5%
+          const levelDropRates = [0.025, 0.040, 0.055];
+          let dropChance = levelDropRates[this.currentLevel - 1] ?? 0.04;
+
+          // Throttled if 2 or 3 crates already present on screen
+          if (onScreenSkills === 2) dropChance *= 0.50;
+          if (onScreenSkills === 3) dropChance *= 0.20;
+
+          const isBossDrop = enemy.isBoss;
+          const isSubBossDrop = enemy.isSubBoss && this.rng.next() < 0.45;
+
+          if (isBossDrop || isSubBossDrop || this.rng.next() < dropChance) {
+            this.lastSkillDropTime = now;
+            this.spawnSkillPickup(enemy.sprite.x, enemy.sprite.y);
+          }
         }
 
         if (enemy.isSubBoss) {
@@ -1890,60 +1902,63 @@ export class ChogScene extends Phaser.Scene {
         continue;
       }
 
-      // Check frozen
-      if (enemy.frozenTimer > 0) {
+      // Check frozen (Bosses & Sub-bosses have unstoppable boss poise and cannot be frozen or stunned!)
+      if (enemy.isBoss || enemy.isSubBoss) {
+        enemy.frozenTimer = 0;
+      } else if (enemy.frozenTimer > 0) {
         enemy.frozenTimer -= dt;
-        continue; // Do not move while frozen!
+        continue; // Minions do not move while frozen
       }
 
       // Boss Cheat Skills & Attacks
       if (enemy.isBoss) {
         enemy.bossSkillTimer = (enemy.bossSkillTimer || 0) + dt;
-        if (enemy.bossSkillTimer >= 4.0) {
+        const barrageCooldown = this.currentLevel === 3 ? 2.6 : this.currentLevel === 2 ? 3.0 : 3.2;
+        if (enemy.bossSkillTimer >= barrageCooldown) {
           enemy.bossSkillTimer = 0;
           this.triggerBossRadialBarrage(enemy.sprite.x, enemy.sprite.y);
         }
 
-        // Sector 1 Boss Cheat Skill: Singularity Vortex Pulse
+        // Sector 1 Boss Cheat Skill: Singularity Vortex Pulse (3.8s)
         if (this.currentLevel === 1) {
           enemy.cheatSkillTimer = (enemy.cheatSkillTimer || 0) + dt;
-          if (enemy.cheatSkillTimer >= 6.0) {
+          if (enemy.cheatSkillTimer >= 3.8) {
             enemy.cheatSkillTimer = 0;
             this.triggerBoss1Singularity(enemy.sprite.x, enemy.sprite.y);
           }
         }
 
-        // Sector 2 Boss Cheat Skills: Scrambler EMP (10s) + NEW Twin Laser Sweep (8s)
+        // Sector 2 Boss Cheat Skills: Scrambler EMP (6.5s) + Twin Laser Sweep (5.0s)
         if (this.currentLevel === 2) {
           enemy.cheatSkillTimer = (enemy.cheatSkillTimer || 0) + dt;
-          if (enemy.cheatSkillTimer >= 10.0) {
+          if (enemy.cheatSkillTimer >= 6.5) {
             enemy.cheatSkillTimer = 0;
             this.triggerBossScramblerEMP();
           }
 
           enemy.cheatSkillTimer2 = (enemy.cheatSkillTimer2 || 0) + dt;
-          if (enemy.cheatSkillTimer2 >= 8.0) {
+          if (enemy.cheatSkillTimer2 >= 5.0) {
             enemy.cheatSkillTimer2 = 0;
             this.triggerBoss2LaserSweep(enemy);
           }
         }
 
-        // Sector 3 Boss Cheat Skills: Scrambler EMP (10s) + Doomsday Missiles (7s) + Supernova (13s) + Core Pull
+        // Sector 3 Boss Cheat Skills: Scrambler EMP (6.0s) + Doomsday Missiles (4.5s) + Supernova (9.5s) + Core Pull
         if (this.currentLevel === 3) {
           enemy.cheatSkillTimer = (enemy.cheatSkillTimer || 0) + dt;
-          if (enemy.cheatSkillTimer >= 10.0) {
+          if (enemy.cheatSkillTimer >= 6.0) {
             enemy.cheatSkillTimer = 0;
             this.triggerBossScramblerEMP();
           }
 
           enemy.cheatSkillTimer2 = (enemy.cheatSkillTimer2 || 0) + dt;
-          if (enemy.cheatSkillTimer2 >= 7.0) {
+          if (enemy.cheatSkillTimer2 >= 4.5) {
             enemy.cheatSkillTimer2 = 0;
             this.triggerBoss3MissileSwarm(enemy);
           }
 
           this.bossSupernovaTimer = (this.bossSupernovaTimer || 0) + dt;
-          if (this.bossSupernovaTimer >= 13.0) {
+          if (this.bossSupernovaTimer >= 9.5) {
             this.bossSupernovaTimer = 0;
             this.triggerBoss3Supernova(enemy);
           }
@@ -1958,19 +1973,19 @@ export class ChogScene extends Phaser.Scene {
         }
       }
 
-      // Sub-Boss 1 (Apex Voidstalker): Phase Blink Ambush
+      // Sub-Boss 1 (Apex Voidstalker): Phase Blink Ambush (3.8s)
       if (enemy.type === 'subboss_stalker') {
         enemy.bossSkillTimer = (enemy.bossSkillTimer || 0) + dt;
-        if (enemy.bossSkillTimer >= 5.5) {
+        if (enemy.bossSkillTimer >= 3.8) {
           enemy.bossSkillTimer = 0;
           this.triggerVoidstalkerBlink(enemy);
         }
       }
 
-      // Sub-Boss 2 (Infernal Siegebeast): Cluster Mine Barrage
+      // Sub-Boss 2 (Infernal Siegebeast): Cluster Mine Barrage (4.0s)
       if (enemy.type === 'subboss_siege') {
         enemy.bossSkillTimer = (enemy.bossSkillTimer || 0) + dt;
-        if (enemy.bossSkillTimer >= 6.0) {
+        if (enemy.bossSkillTimer >= 4.0) {
           enemy.bossSkillTimer = 0;
           this.triggerSiegeMines(enemy);
         }
@@ -1984,7 +1999,7 @@ export class ChogScene extends Phaser.Scene {
 
       if (enemy.slowTimer > 0) {
         enemy.slowTimer -= dt;
-        speed *= 0.55;
+        speed *= (enemy.isBoss || enemy.isSubBoss) ? 0.85 : 0.55;
       }
 
       // Move toward player
@@ -2053,22 +2068,22 @@ export class ChogScene extends Phaser.Scene {
     // Progressive Player Stat Upgrades per sector (challenging but fair)
     if (this.currentLevel === 2) {
       this.maxHp += 20;
-      this.hp = Math.min(this.maxHp, this.hp + 35);
+      this.hp = Math.min(this.maxHp, this.hp + 25);
       this.progressionMoveSpeedMod *= 1.15;
       this.progressionFireRateMod *= 0.85;
-      this.callbacks.onComboAlert?.('🚀 SECTOR 2 REINFORCEMENTS: +20 HP, +10 SHIELD, +15% SPEED!');
+      this.callbacks.onComboAlert?.('🚀 SECTOR 2 REINFORCEMENTS: +20 MAX HP, +10 MAX SHIELD, +15% SPEED!');
     } else if (this.currentLevel === 3) {
       this.maxHp += 25;
-      this.hp = Math.min(this.maxHp, this.hp + 45);
+      this.hp = Math.min(this.maxHp, this.hp + 25);
       this.progressionDamageMod *= 1.30;
       this.progressionMoveSpeedMod *= 1.15;
-      this.callbacks.onComboAlert?.('🔥 OMEGA OVERDRIVE: +25 HP, +15 SHIELD, +30% DAMAGE!');
+      this.callbacks.onComboAlert?.('🔥 OMEGA OVERDRIVE: +25 MAX HP, +15 MAX SHIELD, +30% DAMAGE!');
     } else {
       this.hp = Math.min(this.maxHp, this.hp + 25);
     }
     this.surgeAnnounced = false;
     this.playerMaxShield += this.currentLevel === 2 ? 10 : 15;
-    this.playerShield = this.playerMaxShield;
+    this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 20);
     this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
 
     soundSynth.playLevelUp();
@@ -2154,7 +2169,7 @@ export class ChogScene extends Phaser.Scene {
       shield,
       maxShield: shield,
       shieldSprite: shieldGlow,
-      speed: 110,
+      speed: 135,
       scoreValue: 1800,
       slowTimer: 0,
       frozenTimer: 0,
@@ -2220,7 +2235,7 @@ export class ChogScene extends Phaser.Scene {
       shield,
       maxShield: shield,
       shieldSprite: shieldGlow,
-      speed: 55,
+      speed: 80,
       scoreValue: 2200,
       slowTimer: 0,
       frozenTimer: 0,
@@ -2304,7 +2319,7 @@ export class ChogScene extends Phaser.Scene {
       shield: bossShield,
       maxShield: bossShield,
       shieldSprite: shieldGlow,
-      speed: isOmega ? 52 : 48,
+      speed: isOmega ? 96 : isBeta ? 88 : 80,
       scoreValue: isOmega ? 5000 : isBeta ? 3500 : 2500,
       slowTimer: 0,
       frozenTimer: 0,
@@ -2818,6 +2833,8 @@ export class ChogScene extends Phaser.Scene {
   }
 
   private spawnSkillPickup(x: number, y: number) {
+    if (this.skillPickups.length >= 4) return;
+
     const skills: BonusSkillType[] = [
       'hyper_firerate',
       'orbital_shield',

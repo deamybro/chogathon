@@ -246,7 +246,7 @@ export function deriveGameConfig(
     crown: {
       name: 'Aegis of the Crown',
       key: 'crown' as const,
-      description: 'Invulnerable barrier for 4s, restores 30 Kinetic Shield, and emits a Holy Aegis Shockwave.',
+      description: 'Invulnerable barrier for 4s, restores 20 Kinetic Shield, and emits a Holy Aegis Shockwave.',
       cooldownSeconds: 14,
       durationSeconds: 4.0,
       icon: 'Crown',
@@ -270,7 +270,7 @@ export function deriveGameConfig(
     default: {
       name: 'Nano Repair Injection',
       key: 'default' as const,
-      description: 'Emergency stim recovering 35 HP instantly.',
+      description: 'Emergency stim recovering 30 HP and 15 Kinetic Shield.',
       cooldownSeconds: 15,
       durationSeconds: 0,
       icon: 'HeartPulse',
