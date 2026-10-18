@@ -99,7 +99,13 @@ export default function PlayClient({
   const [chaosAlert, setChaosAlert] = useState<string | null>(null);
   const [comboAlert, setComboAlert] = useState<string | null>(null);
   const [bonusSkills, setBonusSkills] = useState<ActiveBonusSkill[]>([]);
-  const [bossInfo, setBossInfo] = useState<{ name: string; current: number; max: number } | null>(null);
+  const [bossInfo, setBossInfo] = useState<{
+    name: string;
+    current: number;
+    max: number;
+    shield?: number;
+    maxShield?: number;
+  } | null>(null);
   const [bgmActive, setBgmActive] = useState(true);
   const [showDnaModal, setShowDnaModal] = useState(false);
   const [overclock, setOverclock] = useState<{ level: number; currentExp: number; nextExp: number }>({
@@ -277,11 +283,23 @@ export default function PlayClient({
       onBonusSkillsUpdate: (skills: ActiveBonusSkill[]) => {
         setBonusSkills(skills);
       },
-      onBossHpUpdate: (bossName: string | null, currentHp: number, maxHp: number) => {
-        if (!bossName || currentHp <= 0) {
+      onBossHpUpdate: (
+        bossName: string | null,
+        currentHp: number,
+        maxHp: number,
+        currentShield?: number,
+        maxShield?: number
+      ) => {
+        if (!bossName || (currentHp <= 0 && (!currentShield || currentShield <= 0))) {
           setBossInfo(null);
         } else {
-          setBossInfo({ name: bossName, current: currentHp, max: maxHp });
+          setBossInfo({
+            name: bossName,
+            current: currentHp,
+            max: maxHp,
+            shield: currentShield,
+            maxShield: maxShield,
+          });
         }
       },
       onComboAlert: (text: string) => {
@@ -366,7 +384,7 @@ export default function PlayClient({
       >
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800 bg-zinc-950">
           {/* LEFT PANEL: NFT ART & SIGNATURE SKILL (col-span-3) */}
-          <div className="p-4 lg:col-span-3 flex flex-col justify-between space-y-4">
+          <div className="order-2 lg:order-1 p-3.5 sm:p-4 lg:col-span-3 flex flex-col justify-between space-y-4">
             <div>
               {/* Token Header */}
               <div className="flex items-center justify-between">
@@ -476,20 +494,40 @@ export default function PlayClient({
           </div>
 
           {/* CENTER: PHASER CANVAS (col-span-6) */}
-          <div className="relative lg:col-span-6 flex flex-col items-center justify-center bg-black min-h-[420px]">
-            {/* Boss Health Bar Overlay */}
+          <div className="order-1 lg:order-2 relative lg:col-span-6 flex flex-col items-center justify-center bg-black min-h-[380px] sm:min-h-[420px]">
+            {/* Boss Health & Barrier Shield Bar Overlay */}
             {bossInfo && (
-              <div className="absolute top-3 left-4 right-4 z-30 rounded-xl border-2 border-purple-500 bg-black/90 p-2.5 backdrop-blur-md shadow-[0_0_25px_rgba(168,85,247,0.7)] animate-in fade-in">
-                <div className="flex items-center justify-between font-mono text-[11px] font-black">
-                  <span className="flex items-center space-x-2 text-red-400">
-                    <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
-                    <span>⚠️ BOSS DETECTED: {bossInfo.name}</span>
+              <div className="absolute top-3 left-3 right-3 sm:left-4 sm:right-4 z-30 rounded-xl border-2 border-purple-500 bg-black/95 p-2 sm:p-2.5 backdrop-blur-md shadow-[0_0_25px_rgba(168,85,247,0.7)] animate-in fade-in">
+                <div className="flex items-center justify-between font-mono text-[10px] sm:text-[11px] font-black">
+                  <span className="flex items-center space-x-1.5 sm:space-x-2 text-red-400 truncate max-w-[55%] sm:max-w-none">
+                    <span className="h-2 w-2 rounded-full bg-red-500 animate-ping shrink-0" />
+                    <span className="truncate">⚠️ BOSS: {bossInfo.name}</span>
                   </span>
-                  <span className="text-purple-300">
-                    {Math.round(bossInfo.current)} / {bossInfo.max} HP
-                  </span>
+                  <div className="flex items-center space-x-2 text-[9px] sm:text-[10px]">
+                    {bossInfo.shield !== undefined && bossInfo.maxShield && bossInfo.shield > 0 && (
+                      <span className="text-cyan-300 font-bold flex items-center space-x-1">
+                        <Shield className="h-3 w-3 inline text-cyan-400" />
+                        <span>{Math.round(bossInfo.shield)} SHIELD</span>
+                      </span>
+                    )}
+                    <span className="text-purple-300 font-bold">
+                      {Math.round(bossInfo.current)} / {bossInfo.max} HP
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-zinc-900 border border-purple-500/40">
+
+                {/* Kinetic Barrier Shield Bar */}
+                {bossInfo.shield !== undefined && bossInfo.maxShield && bossInfo.shield > 0 && (
+                  <div className="mt-1 h-1.5 sm:h-2 w-full overflow-hidden rounded-full bg-zinc-900 border border-cyan-500/50">
+                    <div
+                      style={{ width: `${Math.max(0, Math.min(100, (bossInfo.shield / bossInfo.maxShield) * 100))}%` }}
+                      className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 shadow-[0_0_10px_rgba(56,189,248,0.8)] transition-all duration-150"
+                    />
+                  </div>
+                )}
+
+                {/* HP Core Bar */}
+                <div className="mt-1 h-2 sm:h-2.5 w-full overflow-hidden rounded-full bg-zinc-900 border border-purple-500/40">
                   <div
                     style={{ width: `${Math.max(0, (bossInfo.current / bossInfo.max) * 100)}%` }}
                     className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 transition-all duration-150"
@@ -614,7 +652,7 @@ export default function PlayClient({
           </div>
 
           {/* RIGHT PANEL: HUD, BONUS SKILLS & RUN CONTROLS (col-span-3) */}
-          <div className="p-4 lg:col-span-3 flex flex-col justify-between space-y-3">
+          <div className="order-3 lg:order-3 p-3.5 sm:p-4 lg:col-span-3 flex flex-col justify-between space-y-3">
             <div className="space-y-3">
               {/* Multi-Level Sector Escalation Block */}
               <div className="rounded-xl border border-purple-500/40 bg-purple-950/20 p-2.5">
@@ -633,7 +671,7 @@ export default function PlayClient({
                 <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-800 border border-purple-500/30">
                   <div
                     style={{
-                      width: `${Math.min(100, Math.max(0, (timeRemaining / (levelInfo.current === 1 ? 45 : levelInfo.current === 2 ? 60 : 75)) * 100))}%`,
+                      width: `${Math.min(100, Math.max(0, (timeRemaining / (levelInfo.current === 1 ? 60 : levelInfo.current === 2 ? 90 : 120)) * 100))}%`,
                     }}
                     className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 transition-all duration-300"
                   />

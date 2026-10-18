@@ -11,7 +11,13 @@ export interface GameCallbacks {
   onEssenceUpdate?: (current: number, max: number, isReady: boolean, isActive: boolean) => void;
   onBonusSkillsUpdate?: (skills: ActiveBonusSkill[]) => void;
   onPowerupPicked?: (name: string, description: string, color: string, icon: string) => void;
-  onBossHpUpdate?: (bossName: string | null, currentHp: number, maxHp: number) => void;
+  onBossHpUpdate?: (
+    bossName: string | null,
+    currentHp: number,
+    maxHp: number,
+    currentShield?: number,
+    maxShield?: number
+  ) => void;
   onComboAlert?: (text: string) => void;
   onOverclockUpdate?: (level: number, currentExp: number, nextExp: number) => void;
   onGameOver: (results: RunResults) => void;
@@ -42,6 +48,9 @@ interface Enemy {
   type: 'drone' | 'wasp' | 'brute' | 'boss' | 'subboss_stalker' | 'subboss_siege';
   hp: number;
   maxHp: number;
+  shield?: number;
+  maxShield?: number;
+  shieldSprite?: Phaser.GameObjects.Arc;
   speed: number;
   scoreValue: number;
   slowTimer: number;
@@ -50,6 +59,7 @@ interface Enemy {
   isSubBoss?: boolean;
   bossSkillTimer?: number;
   cheatSkillTimer?: number;
+  cheatSkillTimer2?: number;
   bossName?: string;
 }
 
@@ -229,7 +239,7 @@ export class ChogScene extends Phaser.Scene {
   // Multi-Level Sector Progression state
   private currentLevel = 1;
   private totalLevels = 3;
-  private levelTimeRemaining = 45;
+  private levelTimeRemaining = 60;
   private totalSurvivedSeconds = 0;
   private readonly levelNames = [
     'Sector Alpha: Incursion',
@@ -239,6 +249,7 @@ export class ChogScene extends Phaser.Scene {
   private subBoss1Spawned = false;
   private subBoss2Spawned = false;
   private mainBossSpawned = false;
+  private bossSupernovaTimer = 0;
 
   // Auto-Aim & Targeting Scrambler EMP state
   private autoAimEnabled = true;
@@ -312,13 +323,14 @@ export class ChogScene extends Phaser.Scene {
     this.enemiesDefeated = 0;
     this.bossesDefeated = 0;
     this.skillsCollected = 0;
-    this.timeRemaining = 45;
+    this.timeRemaining = 60;
     this.currentLevel = 1;
-    this.levelTimeRemaining = 45;
+    this.levelTimeRemaining = 60;
     this.totalSurvivedSeconds = 0;
     this.subBoss1Spawned = false;
     this.subBoss2Spawned = false;
     this.mainBossSpawned = false;
+    this.bossSupernovaTimer = 0;
     this.autoAimEnabled = true;
     this.isAimScrambled = false;
     this.scrambleTimer = 0;
@@ -891,35 +903,35 @@ export class ChogScene extends Phaser.Scene {
     }
 
     // Milestones per level:
-    // Level 1: Sector Alpha (45s) -> Boss at 22s
+    // Level 1: Sector Alpha (60s) -> Boss at 30s
     if (this.currentLevel === 1) {
-      if (this.levelTimeRemaining <= 22 && !this.mainBossSpawned) {
+      if (this.levelTimeRemaining <= 30 && !this.mainBossSpawned) {
         this.mainBossSpawned = true;
         this.spawnMainBoss(1);
       }
     }
-    // Level 2: Sector Beta (60s) -> Sub-Boss 1 (Voidstalker) at 38s, Main Boss at 20s
+    // Level 2: Sector Beta (90s) -> Sub-Boss 1 (Voidstalker) at 60s, Main Boss at 35s
     else if (this.currentLevel === 2) {
-      if (this.levelTimeRemaining <= 38 && !this.subBoss1Spawned) {
+      if (this.levelTimeRemaining <= 60 && !this.subBoss1Spawned) {
         this.subBoss1Spawned = true;
         this.spawnSubBossStalker();
       }
-      if (this.levelTimeRemaining <= 20 && !this.mainBossSpawned) {
+      if (this.levelTimeRemaining <= 35 && !this.mainBossSpawned) {
         this.mainBossSpawned = true;
         this.spawnMainBoss(2);
       }
     }
-    // Level 3: Sector Omega Core (75s) -> Sub-Boss 1 at 55s, Sub-Boss 2 (Siegebeast) at 38s, Supreme Boss at 22s
+    // Level 3: Sector Omega Core (120s) -> Sub-Boss 1 at 90s, Sub-Boss 2 (Siegebeast) at 60s, Supreme Boss at 35s
     else if (this.currentLevel === 3) {
-      if (this.levelTimeRemaining <= 55 && !this.subBoss1Spawned) {
+      if (this.levelTimeRemaining <= 90 && !this.subBoss1Spawned) {
         this.subBoss1Spawned = true;
         this.spawnSubBossStalker();
       }
-      if (this.levelTimeRemaining <= 38 && !this.subBoss2Spawned) {
+      if (this.levelTimeRemaining <= 60 && !this.subBoss2Spawned) {
         this.subBoss2Spawned = true;
         this.spawnSubBossSiege();
       }
-      if (this.levelTimeRemaining <= 22 && !this.mainBossSpawned) {
+      if (this.levelTimeRemaining <= 35 && !this.mainBossSpawned) {
         this.mainBossSpawned = true;
         this.spawnMainBoss(3);
       }
@@ -1511,9 +1523,7 @@ export class ChogScene extends Phaser.Scene {
         const hitRadius = enemy.isBoss ? 38 : 18;
 
         if (dist < hitRadius) {
-          enemy.hp -= p.damage;
-          this.showDamageText(enemy.sprite.x, enemy.sprite.y, p.damage, p.crit);
-          soundSynth.playHit();
+          this.damageEnemy(enemy, p.damage, p.crit);
 
           // Kinetic hit flash on enemy
           this.tweens.add({
@@ -1531,15 +1541,10 @@ export class ChogScene extends Phaser.Scene {
                 const splashDist = Math.hypot(other.sprite.x - enemy.sprite.x, other.sprite.y - enemy.sprite.y);
                 if (splashDist < 70) {
                   const splashDmg = Math.round(p.damage * 0.45);
-                  other.hp -= splashDmg;
-                  this.showDamageText(other.sprite.x, other.sprite.y, splashDmg, false);
+                  this.damageEnemy(other, splashDmg, false);
                 }
               }
             });
-          }
-
-          if (enemy.isBoss && this.callbacks.onBossHpUpdate) {
-            this.callbacks.onBossHpUpdate('VOID COLOSSUS', Math.max(0, enemy.hp), enemy.maxHp);
           }
 
           if (p.slowOnHit) {
@@ -1680,17 +1685,50 @@ export class ChogScene extends Phaser.Scene {
           this.triggerBossRadialBarrage(enemy.sprite.x, enemy.sprite.y);
         }
 
-        // Sector 2 & 3 Cheat Skill: Targeting Scrambler EMP
-        if (this.currentLevel >= 2) {
+        // Sector 1 Boss Cheat Skill: Singularity Vortex Pulse
+        if (this.currentLevel === 1) {
+          enemy.cheatSkillTimer = (enemy.cheatSkillTimer || 0) + dt;
+          if (enemy.cheatSkillTimer >= 6.0) {
+            enemy.cheatSkillTimer = 0;
+            this.triggerBoss1Singularity(enemy.sprite.x, enemy.sprite.y);
+          }
+        }
+
+        // Sector 2 Boss Cheat Skills: Scrambler EMP (10s) + NEW Twin Laser Sweep (8s)
+        if (this.currentLevel === 2) {
           enemy.cheatSkillTimer = (enemy.cheatSkillTimer || 0) + dt;
           if (enemy.cheatSkillTimer >= 10.0) {
             enemy.cheatSkillTimer = 0;
             this.triggerBossScramblerEMP();
           }
+
+          enemy.cheatSkillTimer2 = (enemy.cheatSkillTimer2 || 0) + dt;
+          if (enemy.cheatSkillTimer2 >= 8.0) {
+            enemy.cheatSkillTimer2 = 0;
+            this.triggerBoss2LaserSweep(enemy);
+          }
         }
 
-        // Sector 3 Gravitational Core Pull
+        // Sector 3 Boss Cheat Skills: Scrambler EMP (10s) + Doomsday Missiles (7s) + Supernova (13s) + Core Pull
         if (this.currentLevel === 3) {
+          enemy.cheatSkillTimer = (enemy.cheatSkillTimer || 0) + dt;
+          if (enemy.cheatSkillTimer >= 10.0) {
+            enemy.cheatSkillTimer = 0;
+            this.triggerBossScramblerEMP();
+          }
+
+          enemy.cheatSkillTimer2 = (enemy.cheatSkillTimer2 || 0) + dt;
+          if (enemy.cheatSkillTimer2 >= 7.0) {
+            enemy.cheatSkillTimer2 = 0;
+            this.triggerBoss3MissileSwarm(enemy);
+          }
+
+          this.bossSupernovaTimer = (this.bossSupernovaTimer || 0) + dt;
+          if (this.bossSupernovaTimer >= 13.0) {
+            this.bossSupernovaTimer = 0;
+            this.triggerBoss3Supernova(enemy);
+          }
+
           const pullDx = enemy.sprite.x - this.playerContainer.x;
           const pullDy = enemy.sprite.y - this.playerContainer.y;
           const pullDist = Math.hypot(pullDx, pullDy);
@@ -1719,8 +1757,12 @@ export class ChogScene extends Phaser.Scene {
         }
       }
 
-      // Handle slow timer
-      let speed = enemy.speed * this.configData.difficulty.difficultyMultiplier;
+      // Handle slow timer and progressive level speed scaling
+      const levelSpeedMult = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.35 : 1.70;
+      const isHyperRush = this.levelTimeRemaining <= 10;
+      const rushSpeedMult = isHyperRush ? 1.5 : 1.0;
+      let speed = enemy.speed * this.configData.difficulty.difficultyMultiplier * levelSpeedMult * rushSpeedMult;
+
       if (enemy.slowTimer > 0) {
         enemy.slowTimer -= dt;
         speed *= 0.55;
@@ -1750,9 +1792,9 @@ export class ChogScene extends Phaser.Scene {
   }
 
   private getLevelDuration(level: number): number {
-    if (level === 1) return 45;
-    if (level === 2) return 60;
-    return 75;
+    if (level === 1) return 60;
+    if (level === 2) return 90;
+    return 120;
   }
 
   private advanceToNextLevel() {
@@ -1768,6 +1810,7 @@ export class ChogScene extends Phaser.Scene {
     this.bossSpawned = false;
     this.activeBoss = null;
     this.hyperSurgeTriggered = false;
+    this.bossSupernovaTimer = 0;
 
     // Sector Completion Bonus Score & HP Repair
     const bonusPoints = this.currentLevel === 2 ? 3500 : 6000;
@@ -1826,6 +1869,10 @@ export class ChogScene extends Phaser.Scene {
     const eye = this.add.circle(0, -6, 7, 0xf43f5e);
     eye.setStrokeStyle(1.5, 0xffffff);
 
+    // Kinetic barrier shield ring
+    const shieldGlow = this.add.circle(0, 0, 38, 0x38bdf8, 0.25);
+    shieldGlow.setStrokeStyle(2, 0x38bdf8, 0.85);
+
     const label = this.add.text(0, -32, 'APEX VOIDSTALKER', {
       fontFamily: 'monospace',
       fontSize: '8px',
@@ -1834,24 +1881,28 @@ export class ChogScene extends Phaser.Scene {
     });
     label.setOrigin(0.5);
 
-    container.add([aura, body, eye, label]);
+    container.add([shieldGlow, aura, body, eye, label]);
 
     this.tweens.add({
-      targets: aura,
-      scale: 1.3,
+      targets: shieldGlow,
+      scale: 1.15,
       alpha: 0.1,
-      duration: 500,
+      duration: 650,
       yoyo: true,
       repeat: -1,
     });
 
-    const hp = Math.round(300 * this.configData.difficulty.difficultyMultiplier * (this.currentLevel === 3 ? 1.3 : 1.0));
+    const hp = Math.round(400 * this.configData.difficulty.difficultyMultiplier * (this.currentLevel === 3 ? 1.25 : 1.0));
+    const shield = Math.round(220 * this.configData.difficulty.difficultyMultiplier);
 
     const enemy: Enemy = {
       sprite: container,
       type: 'subboss_stalker',
       hp,
       maxHp: hp,
+      shield,
+      maxShield: shield,
+      shieldSprite: shieldGlow,
       speed: 110,
       scoreValue: 1800,
       slowTimer: 0,
@@ -1883,6 +1934,10 @@ export class ChogScene extends Phaser.Scene {
     const core = this.add.circle(0, 0, 12, 0xfacc15);
     core.setStrokeStyle(2, 0xffffff);
 
+    // Kinetic barrier shield ring
+    const shieldGlow = this.add.circle(0, 0, 46, 0x38bdf8, 0.25);
+    shieldGlow.setStrokeStyle(2, 0x38bdf8, 0.85);
+
     const label = this.add.text(0, -32, 'INFERNAL SIEGEBEAST', {
       fontFamily: 'monospace',
       fontSize: '8px',
@@ -1891,24 +1946,28 @@ export class ChogScene extends Phaser.Scene {
     });
     label.setOrigin(0.5);
 
-    container.add([aura, body, core, label]);
+    container.add([shieldGlow, aura, body, core, label]);
 
     this.tweens.add({
-      targets: aura,
-      scale: 1.25,
-      alpha: 0.15,
+      targets: shieldGlow,
+      scale: 1.15,
+      alpha: 0.1,
       duration: 650,
       yoyo: true,
       repeat: -1,
     });
 
-    const hp = Math.round(440 * this.configData.difficulty.difficultyMultiplier);
+    const hp = Math.round(600 * this.configData.difficulty.difficultyMultiplier);
+    const shield = Math.round(300 * this.configData.difficulty.difficultyMultiplier);
 
     const enemy: Enemy = {
       sprite: container,
       type: 'subboss_siege',
       hp,
       maxHp: hp,
+      shield,
+      maxShield: shield,
+      shieldSprite: shieldGlow,
       speed: 55,
       scoreValue: 2200,
       slowTimer: 0,
@@ -1955,6 +2014,11 @@ export class ChogScene extends Phaser.Scene {
     const eye = this.add.circle(0, 0, isOmega ? 18 : 14, isOmega ? 0xfacc15 : 0xef4444);
     eye.setStrokeStyle(2, 0xffffff);
 
+    // Glowing Kinetic Barrier Shield
+    const shieldRadius = isOmega ? 70 : 58;
+    const shieldGlow = this.add.circle(0, 0, shieldRadius, 0x38bdf8, 0.3);
+    shieldGlow.setStrokeStyle(2.5, 0x38bdf8, 0.9);
+
     const label = this.add.text(0, isOmega ? -46 : -38, bossName, {
       fontFamily: 'monospace',
       fontSize: '8px',
@@ -1963,31 +2027,39 @@ export class ChogScene extends Phaser.Scene {
     });
     label.setOrigin(0.5);
 
-    bossContainer.add([aura, body, eye, label]);
+    bossContainer.add([shieldGlow, aura, body, eye, label]);
 
     this.tweens.add({
-      targets: aura,
-      scale: 1.35,
+      targets: shieldGlow,
+      scale: 1.15,
       alpha: 0.12,
-      duration: 600,
+      duration: 700,
       yoyo: true,
       repeat: -1,
     });
 
-    const baseHp = isOmega ? 1150 : isBeta ? 780 : 520;
+    const baseHp = isOmega ? 2000 : isBeta ? 1350 : 800;
+    const baseShield = isOmega ? 900 : isBeta ? 600 : 350;
+
     const bossHp = Math.round(baseHp * this.configData.difficulty.difficultyMultiplier);
+    const bossShield = Math.round(baseShield * this.configData.difficulty.difficultyMultiplier);
 
     const bossEnemy: Enemy = {
       sprite: bossContainer,
       type: 'boss',
       hp: bossHp,
       maxHp: bossHp,
+      shield: bossShield,
+      maxShield: bossShield,
+      shieldSprite: shieldGlow,
       speed: isOmega ? 52 : 48,
       scoreValue: isOmega ? 5000 : isBeta ? 3500 : 2500,
       slowTimer: 0,
       frozenTimer: 0,
       isBoss: true,
       bossSkillTimer: 0,
+      cheatSkillTimer: 0,
+      cheatSkillTimer2: 0,
       bossName,
     };
 
@@ -1995,8 +2067,259 @@ export class ChogScene extends Phaser.Scene {
     this.enemies.push(bossEnemy);
 
     if (this.callbacks.onBossHpUpdate) {
-      this.callbacks.onBossHpUpdate(bossName, bossHp, bossHp);
+      this.callbacks.onBossHpUpdate(bossName, bossHp, bossHp, bossShield, bossShield);
     }
+  }
+
+  // Boss 1 Cheat Skill: Singularity Vortex Pulse
+  private triggerBoss1Singularity(bx: number, by: number) {
+    soundSynth.playLaser(true);
+    soundSynth.triggerHaptic(60);
+    this.cameras.main.shake(250, 0.015);
+    this.callbacks.onChaosAlert('⚠️ VOID SINGULARITY ORBS DEPLOYED!');
+
+    const baseAngle = Math.atan2(this.playerContainer.y - by, this.playerContainer.x - bx);
+    [-0.3, 0, 0.3].forEach((offset) => {
+      const angle = baseAngle + offset;
+      const orb = this.add.circle(bx, by, 12, 0x7c3aed, 0.7);
+      orb.setStrokeStyle(2, 0xc084fc);
+      const core = this.add.circle(bx, by, 5, 0x000000);
+
+      this.hazards.push({
+        circle: orb,
+        timer: 3.5,
+        x: bx,
+        y: by,
+        radius: 16,
+      });
+
+      this.tweens.add({
+        targets: [orb, core],
+        x: bx + Math.cos(angle) * 420,
+        y: by + Math.sin(angle) * 420,
+        duration: 2600,
+        onUpdate: () => {
+          // Gravitational pull on player
+          const d = Math.hypot(this.playerContainer.x - orb.x, this.playerContainer.y - orb.y);
+          if (d > 20 && d < 180) {
+            this.vx += ((orb.x - this.playerContainer.x) / d) * 40 * (1 / 60);
+            this.vy += ((orb.y - this.playerContainer.y) / d) * 40 * (1 / 60);
+          }
+          if (d < 22 && !this.isShielded) {
+            this.takeDamage(20);
+            this.spawnParticleRing(orb.x, orb.y, 0x7c3aed, 16);
+            orb.destroy();
+            core.destroy();
+          }
+        },
+        onComplete: () => {
+          orb.destroy();
+          core.destroy();
+        },
+      });
+    });
+  }
+
+  // Boss 2 NEW Cheat Skill: Twin Hyper Laser Sweepers
+  private triggerBoss2LaserSweep(boss: Enemy) {
+    soundSynth.playLaser(true);
+    soundSynth.triggerHaptic(80);
+    this.cameras.main.shake(300, 0.02);
+    this.callbacks.onChaosAlert('⚡ DUAL LASER SWEEPERS ENGAGED! DODGE!');
+
+    const { width, height } = this.scale;
+    const sweepGraphics = this.add.graphics();
+    let currentSweepAngle = 0;
+
+    const sweepTween = this.tweens.addCounter({
+      from: 0,
+      to: Math.PI * 1.1,
+      duration: 2200,
+      onUpdate: () => {
+        if (!boss.sprite.active) {
+          sweepGraphics.clear();
+          sweepTween.stop();
+          return;
+        }
+
+        currentSweepAngle = sweepTween.getValue() ?? 0;
+        sweepGraphics.clear();
+
+        const bx = boss.sprite.x;
+        const by = boss.sprite.y;
+
+        // Beam 1 & Beam 2
+        [currentSweepAngle, currentSweepAngle + Math.PI].forEach((angle) => {
+          const endX = bx + Math.cos(angle) * 600;
+          const endY = by + Math.sin(angle) * 600;
+
+          sweepGraphics.lineStyle(6, 0x06b6d4, 0.7);
+          sweepGraphics.strokeLineShape(new Phaser.Geom.Line(bx, by, endX, endY));
+          sweepGraphics.lineStyle(2, 0xffffff, 1.0);
+          sweepGraphics.strokeLineShape(new Phaser.Geom.Line(bx, by, endX, endY));
+
+          // Check distance between player and beam line
+          const line = new Phaser.Geom.Line(bx, by, endX, endY);
+          const pt = new Phaser.Geom.Point(this.playerContainer.x, this.playerContainer.y);
+          const closest = Phaser.Geom.Line.GetNearestPoint(line, pt);
+          const distToBeam = Math.hypot(this.playerContainer.x - closest.x, this.playerContainer.y - closest.y);
+
+          if (distToBeam < 16 && !this.isShielded) {
+            this.takeDamage(18);
+            this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x06b6d4, 10);
+          }
+        });
+      },
+      onComplete: () => {
+        sweepGraphics.clear();
+        sweepGraphics.destroy();
+      },
+    });
+  }
+
+  // Boss 3 NEW Cheat Skill 1: Doomsday Cluster Missile Swarm
+  private triggerBoss3MissileSwarm(boss: Enemy) {
+    soundSynth.playLaser(true);
+    soundSynth.triggerHaptic(75);
+    this.callbacks.onChaosAlert('🚀 DOOMSDAY MISSILE SALVO LOCKING ON!');
+
+    const count = 5;
+    for (let i = 0; i < count; i++) {
+      this.time.delayedCall(i * 140, () => {
+        if (!boss.sprite.active) return;
+        const missile = this.add.circle(boss.sprite.x, boss.sprite.y, 6, 0xef4444);
+        missile.setStrokeStyle(1.5, 0xfacc15);
+
+        let missileLife = 0;
+        let mvx = (Math.random() - 0.5) * 150;
+        let mvy = 60 + Math.random() * 80;
+
+        const updateEvent = this.time.addEvent({
+          delay: 35,
+          repeat: 70,
+          callback: () => {
+            if (!missile.active) {
+              updateEvent.remove();
+              return;
+            }
+            missileLife += 0.035;
+
+            // Homing trajectory
+            const targetDx = this.playerContainer.x - missile.x;
+            const targetDy = this.playerContainer.y - missile.y;
+            const targetDist = Math.hypot(targetDx, targetDy);
+
+            if (targetDist > 10) {
+              mvx += (targetDx / targetDist) * 320 * 0.035;
+              mvy += (targetDy / targetDist) * 320 * 0.035;
+            }
+
+            const curSpeed = Math.hypot(mvx, mvy);
+            const maxSpeed = 220;
+            if (curSpeed > maxSpeed) {
+              mvx = (mvx / curSpeed) * maxSpeed;
+              mvy = (mvy / curSpeed) * maxSpeed;
+            }
+
+            missile.x += mvx * 0.035;
+            missile.y += mvy * 0.035;
+
+            // Collision check
+            if (targetDist < 18) {
+              updateEvent.remove();
+              soundSynth.playExplosion(false);
+              this.spawnParticleRing(missile.x, missile.y, 0xef4444, 16);
+              if (!this.isShielded) {
+                this.takeDamage(18);
+              }
+              missile.destroy();
+            } else if (missileLife >= 2.5) {
+              updateEvent.remove();
+              missile.destroy();
+            }
+          },
+        });
+      });
+    }
+  }
+
+  // Boss 3 NEW Cheat Skill 2: Hyper Singularity Supernova
+  private triggerBoss3Supernova(boss: Enemy) {
+    soundSynth.playBossAlert();
+    this.cameras.main.flash(400, 239, 68, 68);
+    this.cameras.main.shake(500, 0.03);
+    this.callbacks.onChaosAlert('🌌 OMEGA SUPERNOVA FORMING AT CORE!');
+    this.callbacks.onComboAlert?.('⚠️ GRAVITATIONAL SINGULARITY: EVACUATE CORE!');
+
+    const { width, height } = this.scale;
+    const cx = width / 2;
+    const cy = height / 2;
+
+    const singularity = this.add.circle(cx, cy, 20, 0x450a0a, 0.8);
+    singularity.setStrokeStyle(3, 0xfacc15);
+
+    const pullTimer = this.time.addEvent({
+      delay: 50,
+      repeat: 55,
+      callback: () => {
+        if (!singularity.active) return;
+        const pdx = cx - this.playerContainer.x;
+        const pdy = cy - this.playerContainer.y;
+        const pdist = Math.hypot(pdx, pdy);
+        if (pdist > 25 && pdist < 450) {
+          this.vx += (pdx / pdist) * 90 * (1 / 20);
+          this.vy += (pdy / pdist) * 90 * (1 / 20);
+        }
+      },
+    });
+
+    this.tweens.add({
+      targets: singularity,
+      scale: 3.5,
+      alpha: 0.95,
+      duration: 2700,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        pullTimer.remove();
+        soundSynth.playExplosion(true);
+        this.cameras.main.flash(300, 255, 255, 255);
+        this.cameras.main.shake(400, 0.025);
+        this.spawnParticleRing(cx, cy, 0xfacc15, 36);
+
+        // 16-bullet nova burst
+        const bulletCount = 16;
+        for (let b = 0; b < bulletCount; b++) {
+          const bAngle = (b / bulletCount) * Math.PI * 2;
+          const bullet = this.add.circle(cx, cy, 6, 0xef4444);
+          bullet.setStrokeStyle(1.5, 0xffffff);
+
+          this.hazards.push({
+            circle: bullet,
+            timer: 2.5,
+            x: cx,
+            y: cy,
+            radius: 12,
+          });
+
+          this.tweens.add({
+            targets: bullet,
+            x: cx + Math.cos(bAngle) * 450,
+            y: cy + Math.sin(bAngle) * 450,
+            duration: 2000,
+            onUpdate: () => {
+              const d = Math.hypot(this.playerContainer.x - bullet.x, this.playerContainer.y - bullet.y);
+              if (d < 18 && !this.isShielded) {
+                this.takeDamage(16);
+                bullet.destroy();
+              }
+            },
+            onComplete: () => bullet.destroy(),
+          });
+        }
+
+        singularity.destroy();
+      },
+    });
   }
 
   private triggerVoidstalkerBlink(stalker: Enemy) {
@@ -2462,12 +2785,53 @@ export class ChogScene extends Phaser.Scene {
     }
   }
 
-  private showDamageText(x: number, y: number, textOrDmg: number | string, crit: boolean) {
+  private damageEnemy(enemy: Enemy, amount: number, crit = false) {
+    let dealtDamage = amount;
+    if (enemy.shield && enemy.shield > 0) {
+      if (enemy.shield >= dealtDamage) {
+        enemy.shield -= dealtDamage;
+        this.showDamageText(enemy.sprite.x, enemy.sprite.y, `SHIELD -${Math.round(dealtDamage)}`, false, '#38bdf8');
+        this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, 0x38bdf8, 6);
+        soundSynth.playHit();
+        dealtDamage = 0;
+      } else {
+        dealtDamage -= enemy.shield;
+        enemy.shield = 0;
+        this.showDamageText(enemy.sprite.x, enemy.sprite.y, 'SHIELD BROKEN!', true, '#38bdf8');
+        this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, 0x38bdf8, 20);
+        soundSynth.playExplosion(false);
+        this.cameras.main.shake(150, 0.015);
+        if (enemy.shieldSprite) {
+          enemy.shieldSprite.destroy();
+          enemy.shieldSprite = undefined;
+        }
+      }
+    }
+
+    if (dealtDamage > 0) {
+      enemy.hp -= dealtDamage;
+      this.showDamageText(enemy.sprite.x, enemy.sprite.y, Math.round(dealtDamage), crit);
+      soundSynth.playHit();
+    }
+
+    if (enemy.isBoss && this.callbacks.onBossHpUpdate) {
+      this.callbacks.onBossHpUpdate(
+        enemy.bossName ?? 'BOSS',
+        Math.max(0, enemy.hp),
+        enemy.maxHp,
+        enemy.shield,
+        enemy.maxShield
+      );
+    }
+  }
+
+  private showDamageText(x: number, y: number, textOrDmg: number | string, crit: boolean, customColor?: string) {
     const display = typeof textOrDmg === 'number' ? (crit ? `CRIT! -${textOrDmg}` : `-${textOrDmg}`) : textOrDmg;
+    const color = customColor || (crit ? '#facc15' : '#ffffff');
     const text = this.add.text(x, y - 10, display, {
       fontFamily: 'monospace',
       fontSize: crit ? '14px' : '11px',
-      color: crit ? '#facc15' : '#ffffff',
+      color,
       fontStyle: crit ? 'bold' : 'normal',
     });
     text.setOrigin(0.5);
