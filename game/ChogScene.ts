@@ -8,7 +8,9 @@ export interface GameCallbacks {
   onScoreUpdate: (score: number) => void;
   onTimeUpdate: (secondsRemaining: number) => void;
   onAbilityState: (cooldownSeconds: number, isReady: boolean) => void;
+  onEssenceUpdate?: (current: number, max: number, isReady: boolean, isActive: boolean) => void;
   onBonusSkillsUpdate?: (skills: ActiveBonusSkill[]) => void;
+  onPowerupPicked?: (name: string, description: string, color: string, icon: string) => void;
   onBossHpUpdate?: (bossName: string | null, currentHp: number, maxHp: number) => void;
   onComboAlert?: (text: string) => void;
   onOverclockUpdate?: (level: number, currentExp: number, nextExp: number) => void;
@@ -59,6 +61,7 @@ interface SkillPickup {
   type: BonusSkillType;
   x: number;
   y: number;
+  meta: { name: string; icon: string; description: string; duration: number; color: number; hex: string };
 }
 
 interface GemPickup {
@@ -77,53 +80,85 @@ const BONUS_SKILL_META: Record<
   BonusSkillType,
   { name: string; icon: string; description: string; duration: number; color: number; hex: string }
 > = {
-  chain_lightning: {
-    name: 'Tesla Chain Arc',
+  hyper_firerate: {
+    name: 'Hyper Overdrive',
     icon: 'Zap',
-    description: 'Blaster bolts arc high-voltage lightning into nearby swarms',
-    duration: 12,
-    color: 0x38bdf8,
-    hex: '#38bdf8',
+    description: 'Blaster fire rate surges by +80% rapid-fire',
+    duration: 10,
+    color: 0xf59e0b,
+    hex: '#f59e0b',
   },
   orbital_shield: {
-    name: 'Orbital Deflectors',
+    name: 'Aegis Deflectors',
     icon: 'Shield',
-    description: 'Energy spheres orbit around your Chog, vaporizing contact foes',
+    description: 'Dual kinetic barrier spheres orbit and shred enemies on contact',
     duration: 14,
     color: 0x22c55e,
     hex: '#22c55e',
   },
+  nuke_bomb: {
+    name: 'Tactical Nuke',
+    icon: 'Bomb',
+    description: 'Instant screen-wide seismic shockwave obliterating minor swarms',
+    duration: 0,
+    color: 0xef4444,
+    hex: '#ef4444',
+  },
+  cryo_blast: {
+    name: 'Sub-Zero Stasis',
+    icon: 'Snowflake',
+    description: 'Cryogenic blast freezes all active hostiles in absolute zero for 4s',
+    duration: 4,
+    color: 0x06b6d4,
+    hex: '#06b6d4',
+  },
   homing_missiles: {
     name: 'Micro-Missile Salvo',
     icon: 'Rocket',
-    description: 'Automatically fires seeking heat-guided rockets at elite targets',
+    description: 'Launches swarms of seeking heat-guided micro-rockets at priority targets',
     duration: 12,
     color: 0xf43f5e,
     hex: '#f43f5e',
   },
-  cryo_blast: {
-    name: 'Sub-Zero Cryo Wave',
-    icon: 'Snowflake',
-    description: 'Emits a freezing shockwave that stops all nearby enemies cold',
-    duration: 10,
-    color: 0x06b6d4,
-    hex: '#06b6d4',
+  chain_lightning: {
+    name: 'Tesla Arc Storm',
+    icon: 'CloudLightning',
+    description: 'Projectiles discharge high-voltage lightning jumping across 4 targets',
+    duration: 12,
+    color: 0x38bdf8,
+    hex: '#38bdf8',
   },
-  adrenaline_stim: {
-    name: 'Adrenaline Overdrive',
-    icon: 'Flame',
-    description: 'Supercharges movement speed and attack velocity by +40%',
+  speed_warp: {
+    name: 'Chrono Speed Warp',
+    icon: 'FastForward',
+    description: 'Hyper-accelerates player movement by +70% leaving phase light trails',
+    duration: 10,
+    color: 0xa855f7,
+    hex: '#a855f7',
+  },
+  vampire_heal: {
+    name: 'Vampiric Leech',
+    icon: 'Heart',
+    description: 'Instantly recovers 35 HP plus drains health from enemy hits',
     duration: 8,
-    color: 0xf59e0b,
-    hex: '#f59e0b',
+    color: 0xec4899,
+    hex: '#ec4899',
+  },
+  midas_jackpot: {
+    name: 'Midas Gold Rush',
+    icon: 'Coins',
+    description: 'Doubles all score gains and spawns radiant golden gem clusters',
+    duration: 10,
+    color: 0xeab308,
+    hex: '#eab308',
   },
   magnet_overdrive: {
     name: 'Graviton Siphon',
     icon: 'Magnet',
-    description: 'Massively expands collection magnet across the entire arena',
+    description: 'Creates a colossal gravitational vortex pulling all gems to player',
     duration: 12,
-    color: 0xa855f7,
-    hex: '#a855f7',
+    color: 0x8b5cf6,
+    hex: '#8b5cf6',
   },
 };
 
@@ -154,6 +189,25 @@ export class ChogScene extends Phaser.Scene {
   private orbitalContainer!: Phaser.GameObjects.Container;
   private missileTimer = 0;
   private cryoTimer = 0;
+
+  // Essence / Mana & Avatar Signature Ultimate state
+  private essence = 0;
+  private maxEssence = 100;
+  private isUltimateReady = false;
+  private isUltimateActive = false;
+  private ultimateDurationTimer = 0;
+  private ultimateMaxDuration = 6.0;
+  private ultimateBeamGraphics!: Phaser.GameObjects.Graphics;
+  private lastReportedEssence = -1;
+  private lastReportedUltimateReady = false;
+  private lastReportedUltimateActive = false;
+
+  // Redesigned Twin Cannon Barrels state
+  private fireBarrelToggle = false;
+  private barrelLeft!: Phaser.GameObjects.Rectangle;
+  private barrelRight!: Phaser.GameObjects.Rectangle;
+  private muzzleFlashLeft!: Phaser.GameObjects.Arc;
+  private muzzleFlashRight!: Phaser.GameObjects.Arc;
 
   // Combos & Tracking
   private score = 0;
@@ -194,6 +248,7 @@ export class ChogScene extends Phaser.Scene {
   private keyS!: Phaser.Input.Keyboard.Key;
   private keyD!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
+  private keyF!: Phaser.Input.Keyboard.Key;
   private keyP!: Phaser.Input.Keyboard.Key;
   private keyR!: Phaser.Input.Keyboard.Key;
 
@@ -222,6 +277,9 @@ export class ChogScene extends Phaser.Scene {
     this.lastReportedTime = -1;
     this.lastReportedAbilityCooldown = -1;
     this.lastReportedAbilityReady = true;
+    this.lastReportedEssence = -1;
+    this.lastReportedUltimateReady = false;
+    this.lastReportedUltimateActive = false;
 
     this.maxHp = this.configData.archetype.maxHealth;
     this.hp = this.maxHp;
@@ -249,6 +307,11 @@ export class ChogScene extends Phaser.Scene {
     this.overclockExp = 0;
     this.nextOverclockExp = 250;
     this.hyperSurgeTriggered = false;
+    this.essence = 0;
+    this.isUltimateReady = false;
+    this.isUltimateActive = false;
+    this.ultimateDurationTimer = 0;
+    this.fireBarrelToggle = false;
     this.activeBonusSkills.clear();
     this.orbitalOrbs = [];
     this.projectiles = [];
@@ -397,8 +460,17 @@ export class ChogScene extends Phaser.Scene {
     this.overclockAura = this.add.circle(0, 0, 30, 0xfacc15, 0);
     this.overclockAura.setStrokeStyle(2.5, 0xfde047);
 
-    // Muzzle Flash
-    this.muzzleFlash = this.add.circle(22, 0, 8, 0xffffff, 0);
+    // Twin Plasma Cannon Barrels with alternating recoil & flashes
+    this.barrelLeft = this.add.rectangle(15, -8, 14, 5, 0x1e293b);
+    this.barrelLeft.setStrokeStyle(1.5, 0x475569);
+    this.barrelRight = this.add.rectangle(15, 8, 14, 5, 0x1e293b);
+    this.barrelRight.setStrokeStyle(1.5, 0x475569);
+    const tipLeft = this.add.rectangle(21, -8, 4, 4, this.configData.attack.bulletColor);
+    const tipRight = this.add.rectangle(21, 8, 4, 4, this.configData.attack.bulletColor);
+
+    this.muzzleFlashLeft = this.add.circle(24, -8, 7, 0xffffff, 0);
+    this.muzzleFlashRight = this.add.circle(24, 8, 7, 0xffffff, 0);
+    this.muzzleFlash = this.add.circle(24, 0, 9, 0xffffff, 0);
 
     // Body
     const bodyColor = this.configData.archetype.type === 'suit' ? 0x475569 :
@@ -425,21 +497,30 @@ export class ChogScene extends Phaser.Scene {
     const leftEye = this.add.circle(8, -5, 4.5, eyeColor);
     const rightEye = this.add.circle(8, 5, 4.5, eyeColor);
 
-    // Mouth / blaster nozzle
-    const mouthIndicator = this.add.rectangle(16, 0, 8, 5, this.configData.attack.bulletColor);
+    // Core chassis cockpit glow
+    const coreGlow = this.add.circle(3, 0, 6, this.configData.attack.bulletColor, 0.4);
 
     this.playerContainer.add([
       this.playerShieldGlow,
       this.overclockAura,
+      this.barrelLeft,
+      this.barrelRight,
+      tipLeft,
+      tipRight,
       bodyShape,
+      coreGlow,
       leftEye,
       rightEye,
-      mouthIndicator,
+      this.muzzleFlashLeft,
+      this.muzzleFlashRight,
       this.muzzleFlash,
     ]);
 
     // Orbital orbs container
     this.orbitalContainer = this.add.container(width / 2, height / 2);
+
+    // Ultimate Beam Graphics layer
+    this.ultimateBeamGraphics = this.add.graphics();
 
     // Setup input keys
     if (this.input.keyboard) {
@@ -449,11 +530,20 @@ export class ChogScene extends Phaser.Scene {
       this.keyS = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
       this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
       this.keySpace = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      this.keyF = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
       this.keyP = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
       this.keyR = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
 
       this.keySpace.on('down', () => {
-        this.triggerActiveAbility();
+        if (this.isUltimateReady && !this.isUltimateActive) {
+          this.triggerUltimate();
+        } else {
+          this.triggerActiveAbility();
+        }
+      });
+
+      this.keyF.on('down', () => {
+        this.triggerUltimate();
       });
 
       this.keyP.on('down', () => {
@@ -490,6 +580,7 @@ export class ChogScene extends Phaser.Scene {
     this.callbacks.onScoreUpdate(this.score);
     this.callbacks.onTimeUpdate(this.timeRemaining);
     this.callbacks.onAbilityState(0, true);
+    this.callbacks.onEssenceUpdate?.(0, this.maxEssence, false, false);
     this.emitBonusSkillsUpdate();
   }
 
@@ -523,6 +614,13 @@ export class ChogScene extends Phaser.Scene {
 
   public triggerActiveAbility(): void {
     if (!this.isGameStarted || this.isFinished || this.isPaused) return;
+
+    // If ultimate is ready and not active, unleash Signature Ultimate!
+    if (this.isUltimateReady && !this.isUltimateActive) {
+      this.triggerUltimate();
+      return;
+    }
+
     if (this.abilityTimer > 0) return;
 
     soundSynth.playAbility();
@@ -573,6 +671,123 @@ export class ChogScene extends Phaser.Scene {
     this.callbacks.onAbilityState(this.lastReportedAbilityCooldown, false);
   }
 
+  public addEssence(amount: number): void {
+    if (this.isUltimateActive) return;
+    this.essence = Math.min(this.maxEssence, this.essence + amount);
+    const isReady = this.essence >= this.maxEssence;
+    if (isReady && !this.isUltimateReady) {
+      this.isUltimateReady = true;
+      soundSynth.playUltimateReady();
+      soundSynth.triggerHaptic(80);
+      this.callbacks.onComboAlert?.('🔥 SIGNATURE ULTIMATE CHARGED! [SPACE/F]');
+    }
+    this.emitEssenceUpdate();
+  }
+
+  private emitEssenceUpdate(): void {
+    const rounded = Math.round(this.essence);
+    if (
+      rounded !== this.lastReportedEssence ||
+      this.isUltimateReady !== this.lastReportedUltimateReady ||
+      this.isUltimateActive !== this.lastReportedUltimateActive
+    ) {
+      this.lastReportedEssence = rounded;
+      this.lastReportedUltimateReady = this.isUltimateReady;
+      this.lastReportedUltimateActive = this.isUltimateActive;
+      this.callbacks.onEssenceUpdate?.(
+        rounded,
+        this.maxEssence,
+        this.isUltimateReady,
+        this.isUltimateActive
+      );
+    }
+  }
+
+  public triggerUltimate(): void {
+    if (!this.isUltimateReady || this.isUltimateActive || !this.isGameStarted || this.isFinished || this.isPaused) return;
+
+    this.isUltimateActive = true;
+    this.isUltimateReady = false;
+    this.ultimateDurationTimer = this.ultimateMaxDuration;
+
+    soundSynth.playLaser(true);
+    soundSynth.triggerHaptic(120);
+    this.cameras.main.shake(500, 0.03);
+    this.cameras.main.flash(250, 255, 255, 255);
+    this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0xfacc15, 60);
+
+    const tokenId = this.configData.tokenId;
+    const sigName = this.configData.signatureSkill.name;
+
+    this.callbacks.onComboAlert?.(`⚡ ${sigName.toUpperCase()} UNLEASHED!`);
+
+    // Individual avatar signature ultimate behavior
+    if (tokenId === 969) {
+      // Solar Orbital Lance: Screen-spanning cosmic death beam
+      this.callbacks.onChaosAlert('☀️ SOLAR ORBITAL LANCE ENGAGED');
+      this.isShielded = true;
+      this.abilityActiveDuration = this.ultimateMaxDuration;
+    } else if (tokenId === 404) {
+      // Void Phase Singularity: pull all enemies to center & crush them
+      this.callbacks.onChaosAlert('🌀 VOID SINGULARITY CRUSH');
+      this.isShielded = true;
+      this.abilityActiveDuration = this.ultimateMaxDuration;
+      const { width, height } = this.scale;
+      this.enemies.forEach((enemy) => {
+        enemy.hp -= 150;
+        this.showDamageText(enemy.sprite.x, enemy.sprite.y, 150, true);
+        this.tweens.add({
+          targets: enemy.sprite,
+          x: width / 2,
+          y: height / 2,
+          duration: 350,
+        });
+      });
+    } else if (tokenId === 77) {
+      // Glacial Seismic Stomp: absolute freeze + shatter
+      this.callbacks.onChaosAlert('❄️ GLACIAL ZERO STOMP');
+      this.enemies.forEach((enemy) => {
+        enemy.frozenTimer = 5.0;
+        enemy.hp -= 140;
+        this.showDamageText(enemy.sprite.x, enemy.sprite.y, 140, true);
+      });
+    } else if (tokenId === 1337) {
+      // Solar Flare Rampage: extreme speed boost + piercing overdrive
+      this.callbacks.onChaosAlert('🔥 SOLAR FLARE OVERDRIVE');
+      this.isShielded = true;
+      this.abilityActiveDuration = this.ultimateMaxDuration;
+      this.vx += Math.cos(this.aimAngle) * 550;
+      this.vy += Math.sin(this.aimAngle) * 550;
+    } else if (tokenId === 1969) {
+      // Midas Sovereign Overload: turn all minor enemies to gold gems!
+      this.callbacks.onChaosAlert('👑 MIDAS TRANSCENDENCE SUPERNOVA');
+      this.isShielded = true;
+      this.abilityActiveDuration = this.ultimateMaxDuration;
+      for (let i = this.enemies.length - 1; i >= 0; i--) {
+        const e = this.enemies[i];
+        if (!e.isBoss) {
+          this.spawnGem(e.sprite.x, e.sprite.y, 250);
+          this.score += 500;
+          e.sprite.destroy();
+          this.enemies.splice(i, 1);
+        } else {
+          e.hp -= 200;
+          this.showDamageText(e.sprite.x, e.sprite.y, 200, true);
+        }
+      }
+      this.callbacks.onScoreUpdate(this.score);
+    } else {
+      // Titan Overload: Invulnerability + health regen
+      this.callbacks.onChaosAlert('⚡ TITAN OVERLOAD OVERDRIVE');
+      this.isShielded = true;
+      this.abilityActiveDuration = this.ultimateMaxDuration;
+      this.hp = Math.min(this.maxHp, this.hp + 50);
+      this.callbacks.onHpUpdate(this.hp, this.maxHp);
+    }
+
+    this.emitEssenceUpdate();
+  }
+
   update(time: number, delta: number) {
     if (!this.isGameStarted || this.isFinished || this.isPaused) return;
 
@@ -620,6 +835,54 @@ export class ChogScene extends Phaser.Scene {
         this.isShielded = false;
         this.playerShieldGlow.setAlpha(0);
       }
+    }
+
+    // 2.5 Active Signature Ultimate Duration & Continuous Tick
+    if (this.isUltimateActive) {
+      this.ultimateDurationTimer -= dt;
+      this.essence = Math.max(0, (this.ultimateDurationTimer / this.ultimateMaxDuration) * 100);
+
+      // Active continuous beam for #969 Solar Orbital Lance
+      if (this.configData.tokenId === 969) {
+        this.ultimateBeamGraphics.clear();
+        this.ultimateBeamGraphics.lineStyle(10, 0xfacc15, 0.9);
+        this.ultimateBeamGraphics.strokeLineShape(
+          new Phaser.Geom.Line(
+            this.playerContainer.x,
+            this.playerContainer.y,
+            this.playerContainer.x + Math.cos(this.aimAngle) * 750,
+            this.playerContainer.y + Math.sin(this.aimAngle) * 750
+          )
+        );
+        this.ultimateBeamGraphics.lineStyle(4, 0xffffff, 1.0);
+        this.ultimateBeamGraphics.strokeLineShape(
+          new Phaser.Geom.Line(
+            this.playerContainer.x,
+            this.playerContainer.y,
+            this.playerContainer.x + Math.cos(this.aimAngle) * 750,
+            this.playerContainer.y + Math.sin(this.aimAngle) * 750
+          )
+        );
+        // Melt hostiles along line
+        this.enemies.forEach((enemy) => {
+          const dist = Math.hypot(enemy.sprite.x - this.playerContainer.x, enemy.sprite.y - this.playerContainer.y);
+          const angleToEnemy = Math.atan2(enemy.sprite.y - this.playerContainer.y, enemy.sprite.x - this.playerContainer.x);
+          const angleDiff = Math.abs(Phaser.Math.Angle.Normalize(this.aimAngle - angleToEnemy));
+          if (angleDiff < 0.22 && dist < 750) {
+            enemy.hp -= 120 * dt;
+            this.showDamageText(enemy.sprite.x, enemy.sprite.y, Math.round(120 * dt), false);
+          }
+        });
+      }
+
+      if (this.ultimateDurationTimer <= 0) {
+        this.isUltimateActive = false;
+        this.essence = 0;
+        this.ultimateBeamGraphics.clear();
+        this.callbacks.onChaosAlert('ULTIMATE CONCLUDED');
+      }
+
+      this.emitEssenceUpdate();
     }
 
     // 3. Update Bonus Skills
@@ -729,15 +992,46 @@ export class ChogScene extends Phaser.Scene {
 
   private grantBonusSkill(type: BonusSkillType) {
     this.skillsCollected++;
-    soundSynth.playPowerup();
     soundSynth.triggerHaptic(60);
     const meta = BONUS_SKILL_META[type];
-    this.activeBonusSkills.set(type, { remaining: meta.duration, maxDuration: meta.duration });
 
-    this.showDamageText(this.playerContainer.x, this.playerContainer.y - 30, `+SKILL: ${meta.name}`, true);
-    this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, meta.color, 24);
+    // On-screen notifications
+    this.callbacks.onPowerupPicked?.(meta.name, meta.description, meta.hex, meta.icon);
+    this.callbacks.onComboAlert?.(`⚡ POWER-UP: ${meta.name.toUpperCase()}`);
+    this.showDamageText(this.playerContainer.x, this.playerContainer.y - 30, `+${meta.name}`, true);
+    this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, meta.color, 30);
 
-    if (type === 'orbital_shield') {
+    if (type === 'nuke_bomb') {
+      soundSynth.playNuke();
+      this.cameras.main.shake(500, 0.035);
+      this.cameras.main.flash(200, 255, 255, 255);
+      this.enemies.forEach((enemy) => {
+        if (enemy.isBoss) {
+          enemy.hp -= 350;
+          this.showDamageText(enemy.sprite.x, enemy.sprite.y, 350, true);
+        } else {
+          this.showDamageText(enemy.sprite.x, enemy.sprite.y, enemy.hp, true);
+          enemy.hp = 0;
+        }
+      });
+      return;
+    }
+
+    if (type === 'vampire_heal') {
+      soundSynth.playHeal();
+      this.hp = Math.min(this.maxHp, this.hp + 35);
+      this.callbacks.onHpUpdate(this.hp, this.maxHp);
+      this.showDamageText(this.playerContainer.x, this.playerContainer.y - 45, '+35 HP HEAL', true);
+    } else if (type === 'speed_warp') {
+      soundSynth.playSpeedWarp();
+    } else if (type === 'midas_jackpot') {
+      soundSynth.playCoin();
+      for (let i = 0; i < 10; i++) {
+        const rad = (i / 10) * Math.PI * 2;
+        this.spawnGem(this.playerContainer.x + Math.cos(rad) * 45, this.playerContainer.y + Math.sin(rad) * 45, 150);
+      }
+    } else if (type === 'orbital_shield') {
+      soundSynth.playPowerup();
       this.orbitalContainer.removeAll(true);
       this.orbitalOrbs = [];
       for (let i = 0; i < 2; i++) {
@@ -747,9 +1041,13 @@ export class ChogScene extends Phaser.Scene {
         this.orbitalOrbs.push({ sprite: orb, angle: (Math.PI * 2 * i) / 2 });
       }
     } else if (type === 'cryo_blast') {
+      soundSynth.playPowerup();
       this.pulseCryoWave();
+    } else {
+      soundSynth.playPowerup();
     }
 
+    this.activeBonusSkills.set(type, { remaining: meta.duration, maxDuration: meta.duration });
     this.emitBonusSkillsUpdate();
   }
 
@@ -899,8 +1197,8 @@ export class ChogScene extends Phaser.Scene {
       inputY /= len;
     }
 
-    const adrenalineBonus = this.activeBonusSkills.has('adrenaline_stim') ? 1.4 : 1.0;
-    const baseSpeed = this.configData.archetype.moveSpeed * this.configData.biome.speedModifier * adrenalineBonus;
+    const speedWarpBonus = this.activeBonusSkills.has('speed_warp') ? 1.7 : 1.0;
+    const baseSpeed = this.configData.archetype.moveSpeed * this.configData.biome.speedModifier * speedWarpBonus;
     const accel = 1800;
     this.vx += inputX * accel * dt;
     this.vy += inputY * accel * dt;
@@ -917,6 +1215,18 @@ export class ChogScene extends Phaser.Scene {
 
     this.playerContainer.x += this.vx * dt;
     this.playerContainer.y += this.vy * dt;
+
+    // Speed warp phase trail
+    if (this.activeBonusSkills.has('speed_warp') && Math.random() < 0.4) {
+      const trail = this.add.circle(this.playerContainer.x, this.playerContainer.y, 14, 0xa855f7, 0.4);
+      this.tweens.add({
+        targets: trail,
+        alpha: 0,
+        scale: 0.2,
+        duration: 200,
+        onComplete: () => trail.destroy(),
+      });
+    }
 
     const pad = 25;
     this.playerContainer.x = Phaser.Math.Clamp(this.playerContainer.x, pad, this.scale.width - pad);
@@ -942,8 +1252,9 @@ export class ChogScene extends Phaser.Scene {
 
   private updateWeaponFiring(time: number) {
     const atk = this.configData.attack;
-    const adrenalineFireMod = this.activeBonusSkills.has('adrenaline_stim') ? 0.65 : 1.0;
-    const effectiveRate = atk.fireRateMs * adrenalineFireMod;
+    const hyperFireMod = this.activeBonusSkills.has('hyper_firerate') ? 0.45 : 1.0;
+    const ultimateFireMod = this.isUltimateActive ? 0.65 : 1.0;
+    const effectiveRate = atk.fireRateMs * hyperFireMod * ultimateFireMod;
 
     if (time - this.lastFireTime >= effectiveRate) {
       this.lastFireTime = time;
@@ -972,29 +1283,61 @@ export class ChogScene extends Phaser.Scene {
 
       soundSynth.playLaser(isCrit);
 
-      // Muzzle flash animation
-      if (this.muzzleFlash) {
-        this.muzzleFlash.setAlpha(0.9);
+      // Alternating Twin Barrel Recoil & Muzzle Flash Animation
+      this.fireBarrelToggle = !this.fireBarrelToggle;
+      const activeBarrel = this.fireBarrelToggle ? this.barrelLeft : this.barrelRight;
+      const activeFlash = this.fireBarrelToggle ? this.muzzleFlashLeft : this.muzzleFlashRight;
+
+      if (activeBarrel) {
+        activeBarrel.x = 9; // kick back
         this.tweens.add({
-          targets: this.muzzleFlash,
-          alpha: 0,
-          duration: 65,
+          targets: activeBarrel,
+          x: 15,
+          duration: 45,
+          ease: 'Power1',
         });
       }
+
+      if (activeFlash) {
+        activeFlash.setAlpha(1.0);
+        this.tweens.add({
+          targets: activeFlash,
+          alpha: 0,
+          duration: 45,
+        });
+      }
+
+      // If hyper overdrive or ultimate is active, both barrels blaze with central spark
+      if (this.activeBonusSkills.has('hyper_firerate') || this.isUltimateActive) {
+        if (this.muzzleFlash) {
+          this.muzzleFlash.setAlpha(0.9);
+          this.tweens.add({
+            targets: this.muzzleFlash,
+            alpha: 0,
+            duration: 40,
+          });
+        }
+      }
+
+      // Projectile lateral barrel offset
+      const sideOffset = this.fireBarrelToggle ? -8 : 8;
+      const normalAngle = fireAngle + Math.PI / 2;
+      const barrelOriginX = this.playerContainer.x + Math.cos(fireAngle) * 23 + Math.cos(normalAngle) * sideOffset;
+      const barrelOriginY = this.playerContainer.y + Math.sin(fireAngle) * 23 + Math.sin(normalAngle) * sideOffset;
 
       if (atk.pattern === 'spread' || this.overclockLevel >= 2) {
         const spreadCount = (atk.pattern === 'spread' ? 3 : 2) + (this.overclockLevel >= 4 ? 2 : 0);
         const offsets = spreadCount === 2 ? [-0.12, 0.12] : spreadCount === 3 ? [-0.22, 0, 0.22] : [-0.35, -0.18, 0, 0.18, 0.35];
         offsets.forEach((offset) => {
-          this.spawnProjectile(fireAngle + offset, damage, isCrit);
+          this.spawnProjectile(fireAngle + offset, damage, isCrit, barrelOriginX, barrelOriginY);
         });
       } else {
-        this.spawnProjectile(fireAngle, damage, isCrit);
+        this.spawnProjectile(fireAngle, damage, isCrit, barrelOriginX, barrelOriginY);
       }
     }
   }
 
-  private spawnProjectile(angle: number, damage: number, crit: boolean) {
+  private spawnProjectile(angle: number, damage: number, crit: boolean, originX?: number, originY?: number) {
     const atk = this.configData.attack;
     const tgt = this.configData.targeting;
 
@@ -1002,8 +1345,8 @@ export class ChogScene extends Phaser.Scene {
     const vx = Math.cos(angle) * speed;
     const vy = Math.sin(angle) * speed;
 
-    const startX = this.playerContainer.x + Math.cos(angle) * 22;
-    const startY = this.playerContainer.y + Math.sin(angle) * 22;
+    const startX = originX !== undefined ? originX : this.playerContainer.x + Math.cos(angle) * 22;
+    const startY = originY !== undefined ? originY : this.playerContainer.y + Math.sin(angle) * 22;
 
     const radius = crit ? 6 : 4;
     const bullet = this.add.circle(startX, startY, radius, crit ? 0xfacc15 : atk.bulletColor);
@@ -1164,11 +1507,15 @@ export class ChogScene extends Phaser.Scene {
         }
         this.lastKillTime = now;
 
-        const points = Math.round(enemy.scoreValue * this.configData.difficulty.scoreMultiplier);
+        const midasMult = this.activeBonusSkills.has('midas_jackpot') ? 2.0 : 1.0;
+        const points = Math.round(enemy.scoreValue * this.configData.difficulty.scoreMultiplier * midasMult);
         this.score += points;
         this.callbacks.onScoreUpdate(this.score);
         this.showScoreText(enemy.sprite.x, enemy.sprite.y, points, enemy.isBoss);
         this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 0xa855f7 : 0xef4444);
+
+        // Charge Avatar Ultimate Essence
+        this.addEssence(enemy.isBoss ? 20 : 4.0);
 
         // Spawn gem
         this.spawnGem(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 500 : 50);
@@ -1392,32 +1739,67 @@ export class ChogScene extends Phaser.Scene {
 
   private spawnSkillPickup(x: number, y: number) {
     const skills: BonusSkillType[] = [
-      'chain_lightning',
+      'hyper_firerate',
       'orbital_shield',
-      'homing_missiles',
+      'nuke_bomb',
       'cryo_blast',
-      'adrenaline_stim',
+      'homing_missiles',
+      'chain_lightning',
+      'speed_warp',
+      'vampire_heal',
+      'midas_jackpot',
       'magnet_overdrive',
     ];
     const picked = this.rng.pick(skills);
     const meta = BONUS_SKILL_META[picked];
 
     const container = this.add.container(x, y);
-    const glow = this.add.circle(0, 0, 14, meta.color, 0.4);
-    const orb = this.add.circle(0, 0, 9, meta.color);
-    orb.setStrokeStyle(2, 0xffffff);
-    container.add([glow, orb]);
 
+    // Outer pulsating beacon ring
+    const beacon = this.add.circle(0, 0, 24, meta.color, 0.25);
+    beacon.setStrokeStyle(2, meta.color, 0.8);
+
+    // High-tech diamond crystal crate
+    const diamond = this.add.rectangle(0, 0, 22, 22, meta.color);
+    diamond.setAngle(45);
+    diamond.setStrokeStyle(2, 0xffffff);
+
+    // Inner glowing core
+    const centerCore = this.add.circle(0, 0, 5, 0xffffff);
+
+    // Floating text label badge above pickup
+    const badgeBg = this.add.rectangle(0, -22, 110, 14, 0x000000, 0.85);
+    badgeBg.setStrokeStyle(1, meta.color);
+    const label = this.add.text(0, -22, meta.name.toUpperCase(), {
+      fontFamily: 'monospace',
+      fontSize: '8px',
+      fontStyle: 'bold',
+      color: meta.hex,
+    });
+    label.setOrigin(0.5);
+
+    container.add([beacon, diamond, centerCore, badgeBg, label]);
+
+    // Bobbing and pulse tweens
     this.tweens.add({
-      targets: [glow, orb],
-      scale: 1.25,
-      alpha: 0.8,
-      duration: 600,
+      targets: beacon,
+      scale: 1.4,
+      alpha: 0.1,
+      duration: 750,
       yoyo: true,
       repeat: -1,
     });
 
-    this.skillPickups.push({ container, type: picked, x, y });
+    this.tweens.add({
+      targets: [diamond, centerCore],
+      y: -4,
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    this.skillPickups.push({ container, type: picked, x, y, meta });
   }
 
   private spawnGem(x: number, y: number, value: number) {
@@ -1427,7 +1809,7 @@ export class ChogScene extends Phaser.Scene {
   }
 
   private updatePickups(dt: number) {
-    const magnetRange = this.activeBonusSkills.has('magnet_overdrive') ? 600 : 120;
+    const magnetRange = this.activeBonusSkills.has('magnet_overdrive') ? 650 : 120;
     const px = this.playerContainer.x;
     const py = this.playerContainer.y;
 
@@ -1445,9 +1827,14 @@ export class ChogScene extends Phaser.Scene {
 
       if (dist < 24) {
         soundSynth.playCoin();
-        this.score += g.value;
+        const midasMult = this.activeBonusSkills.has('midas_jackpot') ? 2.0 : 1.0;
+        const val = Math.round(g.value * midasMult);
+        this.score += val;
         this.callbacks.onScoreUpdate(this.score);
-        this.showScoreText(g.sprite.x, g.sprite.y, g.value, g.value >= 500);
+        this.showScoreText(g.sprite.x, g.sprite.y, val, val >= 500);
+
+        // Essence charging from gem
+        this.addEssence(g.value >= 500 ? 12 : 1.2);
 
         // Overclock EXP Progression
         this.overclockExp += g.value;
@@ -1462,17 +1849,13 @@ export class ChogScene extends Phaser.Scene {
       }
     }
 
-    // Skill Pickups
+    // Skill Pickups: require physical player collision (NO MAGNET SUCTION)
     for (let i = this.skillPickups.length - 1; i >= 0; i--) {
       const p = this.skillPickups[i];
       const dist = Math.hypot(px - p.container.x, py - p.container.y);
 
-      if (dist < magnetRange * 0.8) {
-        p.container.x += ((px - p.container.x) / dist) * 320 * dt;
-        p.container.y += ((py - p.container.y) / dist) * 320 * dt;
-      }
-
-      if (dist < 28) {
+      // Player must physically move to and touch the crate to collect it
+      if (dist < 32) {
         this.grantBonusSkill(p.type);
         p.container.destroy();
         this.skillPickups.splice(i, 1);

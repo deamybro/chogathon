@@ -7,11 +7,15 @@ export type AuraType = 'flame' | 'glitch' | 'gold' | 'default';
 export type TierType = 'common' | 'rare' | 'epic' | 'legendary';
 
 export type BonusSkillType =
-  | 'chain_lightning'
+  | 'hyper_firerate'
   | 'orbital_shield'
-  | 'homing_missiles'
+  | 'nuke_bomb'
   | 'cryo_blast'
-  | 'adrenaline_stim'
+  | 'homing_missiles'
+  | 'chain_lightning'
+  | 'speed_warp'
+  | 'vampire_heal'
+  | 'midas_jackpot'
   | 'magnet_overdrive';
 
 export interface ActiveBonusSkill {

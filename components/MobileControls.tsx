@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Shield, Zap } from 'lucide-react';
+import { Shield, Zap, Star } from 'lucide-react';
 
 interface MobileControlsProps {
   onMove: (x: number, y: number) => void;
   onAbility: () => void;
+  onUltimate?: () => void;
+  isUltimateReady?: boolean;
   abilityCooldown: number;
   abilityReady: boolean;
   abilityName: string;
@@ -14,6 +16,8 @@ interface MobileControlsProps {
 export default function MobileControls({
   onMove,
   onAbility,
+  onUltimate,
+  isUltimateReady = false,
   abilityCooldown,
   abilityReady,
   abilityName,
@@ -110,25 +114,51 @@ export default function MobileControls({
         <span className="absolute bottom-1 text-[9px] font-mono text-zinc-500">MOVE</span>
       </div>
 
-      {/* Action / Active Ability Button */}
-      <div className="flex flex-col items-center space-y-1">
-        <button
-          onClick={onAbility}
-          disabled={!abilityReady}
-          className={`flex h-20 w-20 flex-col items-center justify-center rounded-2xl border-2 font-mono transition active:scale-95 ${
-            abilityReady
-              ? 'border-emerald-400 bg-emerald-500/30 text-emerald-300 shadow-[0_0_20px_rgba(34,197,94,0.5)] animate-pulse'
-              : 'border-zinc-700 bg-zinc-900/50 text-zinc-500 opacity-60'
-          }`}
-        >
-          {abilityReady ? <Zap className="h-6 w-6" /> : <Shield className="h-6 w-6" />}
-          <span className="mt-1 text-[10px] font-bold">
-            {abilityReady ? 'ABILITY' : `${abilityCooldown}s`}
+      {/* Action Buttons: Ability and Ultimate */}
+      <div className="flex items-center space-x-3">
+        {/* Trait Ability Button */}
+        <div className="flex flex-col items-center space-y-1">
+          <button
+            onClick={onAbility}
+            disabled={!abilityReady}
+            className={`flex h-16 w-16 flex-col items-center justify-center rounded-2xl border-2 font-mono transition active:scale-95 ${
+              abilityReady
+                ? 'border-emerald-400 bg-emerald-500/30 text-emerald-300 shadow-[0_0_15px_rgba(34,197,94,0.5)] animate-pulse'
+                : 'border-zinc-700 bg-zinc-900/50 text-zinc-500 opacity-60'
+            }`}
+          >
+            {abilityReady ? <Zap className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
+            <span className="mt-0.5 text-[9px] font-bold">
+              {abilityReady ? 'SKILL' : `${abilityCooldown}s`}
+            </span>
+          </button>
+          <span className="text-[8px] font-mono text-zinc-400 truncate max-w-[70px]">
+            {abilityName}
           </span>
-        </button>
-        <span className="text-[9px] font-mono text-zinc-400 truncate max-w-[80px]">
-          {abilityName}
-        </span>
+        </div>
+
+        {/* Ultimate Signature Button */}
+        {onUltimate && (
+          <div className="flex flex-col items-center space-y-1">
+            <button
+              onClick={onUltimate}
+              disabled={!isUltimateReady}
+              className={`flex h-16 w-16 flex-col items-center justify-center rounded-2xl border-2 font-mono transition active:scale-95 ${
+                isUltimateReady
+                  ? 'border-amber-400 bg-amber-500/40 text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.7)] animate-bounce'
+                  : 'border-zinc-800 bg-zinc-950/60 text-zinc-600 opacity-40'
+              }`}
+            >
+              <Star className={`h-5 w-5 ${isUltimateReady ? 'fill-current text-amber-300' : ''}`} />
+              <span className="mt-0.5 text-[8px] font-black">
+                {isUltimateReady ? 'ULTIMATE' : 'CHARGE'}
+              </span>
+            </button>
+            <span className="text-[8px] font-mono text-amber-400/80 font-bold">
+              SIGNATURE
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

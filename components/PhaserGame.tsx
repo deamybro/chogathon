@@ -9,6 +9,7 @@ import { createPhaserGame } from '@/game/gameConfig';
 export interface PhaserGameHandle {
   startRun: () => void;
   triggerAbility: () => void;
+  triggerUltimate: () => void;
   setTouchMovement: (x: number, y: number) => void;
 }
 
@@ -39,6 +40,14 @@ const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
           const scene = gameRef.current.scene.getScene('ChogScene') as ChogScene;
           if (scene) {
             scene.triggerActiveAbility();
+          }
+        }
+      },
+      triggerUltimate: () => {
+        if (gameRef.current) {
+          const scene = gameRef.current.scene.getScene('ChogScene') as ChogScene;
+          if (scene) {
+            scene.triggerUltimate();
           }
         }
       },

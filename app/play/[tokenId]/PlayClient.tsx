@@ -34,7 +34,31 @@ import {
   Dna,
   X,
   Check,
+  Shield,
+  Bomb,
+  Snowflake,
+  Rocket,
+  CloudLightning,
+  FastForward,
+  Coins,
+  Magnet,
 } from 'lucide-react';
+
+function renderPowerupIcon(iconName: string, className = 'h-3.5 w-3.5') {
+  switch (iconName) {
+    case 'Zap': return <Zap className={className} />;
+    case 'Shield': return <Shield className={className} />;
+    case 'Bomb': return <Bomb className={className} />;
+    case 'Snowflake': return <Snowflake className={className} />;
+    case 'Rocket': return <Rocket className={className} />;
+    case 'CloudLightning': return <CloudLightning className={className} />;
+    case 'FastForward': return <FastForward className={className} />;
+    case 'Heart': return <Heart className={className} />;
+    case 'Coins': return <Coins className={className} />;
+    case 'Magnet': return <Magnet className={className} />;
+    default: return <Sparkles className={className} />;
+  }
+}
 
 const PhaserGame = dynamic(() => import('@/components/PhaserGame'), {
   ssr: false,
@@ -82,6 +106,22 @@ export default function PlayClient({
     nextExp: 250,
   });
 
+  // Avatar Signature Ultimate Essence / Mana State
+  const [essence, setEssence] = useState<{ current: number; max: number; isReady: boolean; isActive: boolean }>({
+    current: 0,
+    max: 100,
+    isReady: false,
+    isActive: false,
+  });
+
+  // Floating on-screen power-up acquired notification toast
+  const [powerupToast, setPowerupToast] = useState<{
+    name: string;
+    description: string;
+    color: string;
+    icon: string;
+  } | null>(null);
+
   // Input & reactive control triggers
   const [abilityTriggerCount, setAbilityTriggerCount] = useState(0);
   const [touchVector, setTouchVector] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -120,6 +160,8 @@ export default function PlayClient({
     setTimeRemaining(60);
     setAbilityCooldown(0);
     setAbilityReady(true);
+    setEssence({ current: 0, max: 100, isReady: false, isActive: false });
+    setPowerupToast(null);
     setChaosAlert(null);
     setComboAlert(null);
     setBonusSkills([]);
@@ -148,6 +190,13 @@ export default function PlayClient({
     }
   }, []);
 
+  // Trigger avatar signature ultimate
+  const handleTriggerUltimate = useCallback(() => {
+    if (gameHandleRef.current) {
+      gameHandleRef.current.triggerUltimate();
+    }
+  }, []);
+
   // Mobile movement
   const handleMobileMove = useCallback((x: number, y: number) => {
     setTouchVector({ x, y });
@@ -172,6 +221,13 @@ export default function PlayClient({
       onAbilityState: (cooldown: number, ready: boolean) => {
         setAbilityCooldown(cooldown);
         setAbilityReady(ready);
+      },
+      onEssenceUpdate: (current: number, max: number, isReady: boolean, isActive: boolean) => {
+        setEssence({ current, max, isReady, isActive });
+      },
+      onPowerupPicked: (name: string, description: string, color: string, icon: string) => {
+        setPowerupToast({ name, description, color, icon });
+        setTimeout(() => setPowerupToast(null), 2800);
       },
       onGameStart: () => {
         setHasStarted(true);
@@ -407,6 +463,30 @@ export default function PlayClient({
               </div>
             )}
 
+            {/* Floating Power-up Acquired Toast */}
+            {powerupToast && (
+              <div
+                style={{ borderColor: powerupToast.color, boxShadow: `0 0 25px ${powerupToast.color}66` }}
+                className="absolute top-20 z-40 flex items-center space-x-3 rounded-xl border-2 bg-black/95 px-4 py-2.5 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200"
+              >
+                <div
+                  style={{ backgroundColor: `${powerupToast.color}25`, color: powerupToast.color }}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/20"
+                >
+                  {renderPowerupIcon(powerupToast.icon, 'h-5 w-5')}
+                </div>
+                <div className="text-left font-mono">
+                  <div className="flex items-center space-x-1.5 text-xs font-black" style={{ color: powerupToast.color }}>
+                    <span>⚡ POWER-UP ACQUIRED:</span>
+                    <span className="text-white">{powerupToast.name.toUpperCase()}</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-300 font-sans leading-tight mt-0.5">
+                    {powerupToast.description}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Chaos Alert Banner */}
             {chaosAlert && !bossInfo && (
               <div className="absolute top-4 z-30 animate-bounce rounded-lg border border-pink-500 bg-black/90 px-4 py-1.5 font-mono text-xs font-black text-pink-400 shadow-[0_0_20px_rgba(236,72,153,0.6)]">
@@ -459,11 +539,15 @@ export default function PlayClient({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Aim & Fire:</span>
-                      <span className="text-zinc-200">Mouse Aim (Auto-fire)</span>
+                      <span className="text-zinc-200">Mouse Aim (Twin Plasma Recoil)</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Hero Ability:</span>
                       <span className="text-emerald-400">Spacebar ({gameConfig.signatureSkill.name})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Avatar Ultimate:</span>
+                      <span className="text-amber-400">Spacebar / [F] Key (100% Charge)</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Hotkeys:</span>
@@ -528,6 +612,65 @@ export default function PlayClient({
                 </p>
               </div>
 
+              {/* Avatar Signature Ultimate Essence / Mana Charge Bar */}
+              <div className={`rounded-xl border p-2.5 transition-all ${
+                essence.isActive
+                  ? 'border-amber-400 bg-amber-950/40 shadow-[0_0_20px_rgba(251,191,36,0.4)] animate-pulse'
+                  : essence.isReady
+                  ? 'border-emerald-400 bg-emerald-950/40 shadow-[0_0_20px_rgba(52,211,153,0.4)]'
+                  : 'border-zinc-800 bg-zinc-900/60'
+              }`}>
+                <div className="flex items-center justify-between font-mono text-xs">
+                  <span className="flex items-center space-x-1.5 font-bold uppercase text-zinc-400">
+                    <Star className={`h-3.5 w-3.5 ${essence.isReady || essence.isActive ? 'text-amber-400 fill-current' : 'text-zinc-500'}`} />
+                    <span>Ultimate Essence</span>
+                  </span>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-black ${
+                    essence.isActive
+                      ? 'bg-amber-500 text-black animate-pulse'
+                      : essence.isReady
+                      ? 'bg-emerald-500 text-black animate-bounce'
+                      : 'bg-zinc-800 text-zinc-400'
+                  }`}>
+                    {essence.isActive ? 'BURNING ACTIVE' : essence.isReady ? 'READY [SPACE/F]' : `${essence.current}% CHARGED`}
+                  </span>
+                </div>
+
+                <div className="mt-1 flex items-center justify-between">
+                  <p className="font-mono text-xs font-black text-white truncate max-w-[170px]">
+                    {gameConfig.signatureSkill.name}
+                  </p>
+                  <span className="text-[9px] font-mono text-zinc-400">
+                    {essence.isActive ? 'Draining...' : 'Charge via kills/gems'}
+                  </span>
+                </div>
+
+                {/* Essence Bar */}
+                <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-800 border border-zinc-700/50">
+                  <div
+                    style={{ width: `${essence.current}%` }}
+                    className={`h-full transition-all duration-150 ${
+                      essence.isActive
+                        ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-red-500'
+                        : essence.isReady
+                        ? 'bg-gradient-to-r from-emerald-400 to-amber-300 animate-pulse'
+                        : 'bg-gradient-to-r from-blue-500 to-cyan-400'
+                    }`}
+                  />
+                </div>
+
+                {/* One-click button if ready */}
+                {essence.isReady && !essence.isActive && (
+                  <button
+                    onClick={handleTriggerUltimate}
+                    className="mt-2 flex items-center justify-center space-x-1 w-full rounded-lg bg-emerald-500 py-1 font-mono text-[10px] font-black text-black hover:bg-emerald-400 transition shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95"
+                  >
+                    <Zap className="h-3 w-3 fill-current" />
+                    <span>UNLEASH AVATAR ULTIMATE</span>
+                  </button>
+                )}
+              </div>
+
               {/* In-Run Overclock Evolution HUD */}
               <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-2.5">
                 <div className="flex items-center justify-between font-mono text-xs">
@@ -563,7 +706,7 @@ export default function PlayClient({
                 <div className="flex items-center justify-between font-mono text-xs">
                   <span className="text-zinc-500 uppercase font-bold flex items-center space-x-1">
                     <Zap className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Hero Skill</span>
+                    <span>Trait Ability</span>
                   </span>
                   <span
                     className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
@@ -576,34 +719,40 @@ export default function PlayClient({
                   </span>
                 </div>
                 <p className="mt-1 font-mono text-xs font-bold text-zinc-200">
-                  {gameConfig.signatureSkill.name}
+                  {gameConfig.ability.name}
                 </p>
               </div>
 
-              {/* In-Game Picked Up Bonus Skills Panel */}
+              {/* In-Game Picked Up Bonus Skills Panel (10 Varieties with Icons) */}
               <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-2.5 text-xs">
                 <div className="flex items-center justify-between font-mono text-[11px] text-cyan-300 font-bold">
                   <span className="flex items-center space-x-1">
                     <Sparkles className="h-3 w-3" />
-                    <span>Field Bonus Skills</span>
+                    <span>Looted Bonus Skills</span>
                   </span>
                   <span className="text-[10px] text-zinc-400">{bonusSkills.length} active</span>
                 </div>
                 {bonusSkills.length === 0 ? (
                   <p className="mt-1 text-[10px] text-zinc-500 font-mono">
-                    Defeat swarms to loot random skill drops!
+                    Move and touch glowing crates on the floor to loot 10 power-ups!
                   </p>
                 ) : (
                   <div className="mt-1.5 space-y-1">
                     {bonusSkills.map((bs) => (
                       <div
                         key={bs.type}
-                        className="flex items-center justify-between rounded bg-black/70 px-2 py-1 border border-cyan-500/30 font-mono text-[10px]"
+                        style={{ borderColor: `${bs.color}50` }}
+                        className="flex items-center justify-between rounded bg-black/80 px-2 py-1 border font-mono text-[10px]"
                       >
-                        <span style={{ color: bs.color }} className="font-bold truncate max-w-[130px]">
-                          {bs.name}
-                        </span>
-                        <span className="text-white font-black">{bs.remainingSeconds}s</span>
+                        <div className="flex items-center space-x-1.5 truncate max-w-[150px]">
+                          <span style={{ color: bs.color }}>
+                            {renderPowerupIcon(bs.icon, 'h-3.5 w-3.5 shrink-0')}
+                          </span>
+                          <span style={{ color: bs.color }} className="font-bold truncate">
+                            {bs.name}
+                          </span>
+                        </div>
+                        <span className="text-white font-black shrink-0">{bs.remainingSeconds}s</span>
                       </div>
                     ))}
                   </div>
@@ -665,6 +814,8 @@ export default function PlayClient({
         <MobileControls
           onMove={handleMobileMove}
           onAbility={handleTriggerAbility}
+          onUltimate={handleTriggerUltimate}
+          isUltimateReady={essence.isReady}
           abilityCooldown={abilityCooldown}
           abilityReady={abilityReady}
           abilityName={gameConfig.signatureSkill.name}
