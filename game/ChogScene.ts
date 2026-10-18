@@ -18,6 +18,8 @@ export interface GameCallbacks {
   onVictory: (results: RunResults) => void;
   onChaosAlert: (message: string) => void;
   onGameStart?: () => void;
+  onLevelUpdate?: (currentLevel: number, totalLevels: number, levelName: string, timeInLevel: number) => void;
+  onAutoAimStatus?: (enabled: boolean, isScrambled: boolean) => void;
 }
 
 interface Projectile {
@@ -37,7 +39,7 @@ interface Projectile {
 
 interface Enemy {
   sprite: Phaser.GameObjects.Container;
-  type: 'drone' | 'wasp' | 'brute' | 'boss';
+  type: 'drone' | 'wasp' | 'brute' | 'boss' | 'subboss_stalker' | 'subboss_siege';
   hp: number;
   maxHp: number;
   speed: number;
@@ -45,7 +47,10 @@ interface Enemy {
   slowTimer: number;
   frozenTimer: number;
   isBoss?: boolean;
+  isSubBoss?: boolean;
   bossSkillTimer?: number;
+  cheatSkillTimer?: number;
+  bossName?: string;
 }
 
 interface Hazard {
@@ -214,12 +219,31 @@ export class ChogScene extends Phaser.Scene {
   private enemiesDefeated = 0;
   private bossesDefeated = 0;
   private skillsCollected = 0;
-  private timeRemaining = 60;
+  private timeRemaining = 45;
   private isFinished = false;
   private isGameStarted = false;
   private isPaused = false;
   private comboStreak = 0;
   private lastKillTime = 0;
+
+  // Multi-Level Sector Progression state
+  private currentLevel = 1;
+  private totalLevels = 3;
+  private levelTimeRemaining = 45;
+  private totalSurvivedSeconds = 0;
+  private readonly levelNames = [
+    'Sector Alpha: Incursion',
+    'Sector Beta: Overcharge',
+    'Sector Omega: Dreadnought Core',
+  ];
+  private subBoss1Spawned = false;
+  private subBoss2Spawned = false;
+  private mainBossSpawned = false;
+
+  // Auto-Aim & Targeting Scrambler EMP state
+  private autoAimEnabled = true;
+  private isAimScrambled = false;
+  private scrambleTimer = 0;
 
   // Boss state
   private activeBoss: Enemy | null = null;
@@ -249,6 +273,7 @@ export class ChogScene extends Phaser.Scene {
   private keyD!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyF!: Phaser.Input.Keyboard.Key;
+  private keyT!: Phaser.Input.Keyboard.Key;
   private keyP!: Phaser.Input.Keyboard.Key;
   private keyR!: Phaser.Input.Keyboard.Key;
 
@@ -287,7 +312,16 @@ export class ChogScene extends Phaser.Scene {
     this.enemiesDefeated = 0;
     this.bossesDefeated = 0;
     this.skillsCollected = 0;
-    this.timeRemaining = 60;
+    this.timeRemaining = 45;
+    this.currentLevel = 1;
+    this.levelTimeRemaining = 45;
+    this.totalSurvivedSeconds = 0;
+    this.subBoss1Spawned = false;
+    this.subBoss2Spawned = false;
+    this.mainBossSpawned = false;
+    this.autoAimEnabled = true;
+    this.isAimScrambled = false;
+    this.scrambleTimer = 0;
     this.isFinished = false;
     this.isGameStarted = false;
     this.isPaused = false;
@@ -531,6 +565,7 @@ export class ChogScene extends Phaser.Scene {
       this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
       this.keySpace = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
       this.keyF = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+      this.keyT = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
       this.keyP = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
       this.keyR = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
 
@@ -544,6 +579,10 @@ export class ChogScene extends Phaser.Scene {
 
       this.keyF.on('down', () => {
         this.triggerUltimate();
+      });
+
+      this.keyT.on('down', () => {
+        this.toggleAutoAim();
       });
 
       this.keyP.on('down', () => {
@@ -578,10 +617,25 @@ export class ChogScene extends Phaser.Scene {
     // Notify React of initial state
     this.callbacks.onHpUpdate(this.hp, this.maxHp);
     this.callbacks.onScoreUpdate(this.score);
-    this.callbacks.onTimeUpdate(this.timeRemaining);
+    this.callbacks.onTimeUpdate(this.levelTimeRemaining);
+    this.callbacks.onLevelUpdate?.(
+      this.currentLevel,
+      this.totalLevels,
+      this.levelNames[this.currentLevel - 1],
+      Math.ceil(this.levelTimeRemaining)
+    );
+    this.callbacks.onAutoAimStatus?.(this.autoAimEnabled, this.isAimScrambled);
     this.callbacks.onAbilityState(0, true);
     this.callbacks.onEssenceUpdate?.(0, this.maxEssence, false, false);
     this.emitBonusSkillsUpdate();
+  }
+
+  public toggleAutoAim(): boolean {
+    this.autoAimEnabled = !this.autoAimEnabled;
+    soundSynth.playCoin();
+    this.callbacks.onComboAlert?.(this.autoAimEnabled ? '🎯 AUTO-AIM ACTIVATED' : '🎯 MANUAL AIM ACTIVATED');
+    this.callbacks.onAutoAimStatus?.(this.autoAimEnabled, this.isAimScrambled);
+    return this.autoAimEnabled;
   }
 
   public togglePause(): void {
@@ -792,28 +846,87 @@ export class ChogScene extends Phaser.Scene {
     if (!this.isGameStarted || this.isFinished || this.isPaused) return;
 
     const dt = delta / 1000;
+    this.totalSurvivedSeconds += dt;
 
-    // 1. Time countdown (Throttled callback)
-    this.timeRemaining -= dt;
-    if (this.timeRemaining <= 0) {
-      this.timeRemaining = 0;
-      this.callbacks.onTimeUpdate(0);
-      this.handleVictory();
-      return;
+    // Scrambler EMP Timer Tick
+    if (this.isAimScrambled) {
+      this.scrambleTimer -= dt;
+      if (this.scrambleTimer <= 0) {
+        this.isAimScrambled = false;
+        this.scrambleTimer = 0;
+        this.callbacks.onChaosAlert('TARGETING RE-CALIBRATED');
+        this.callbacks.onAutoAimStatus?.(this.autoAimEnabled, this.isAimScrambled);
+      }
     }
-    const currentCeilTime = Math.ceil(this.timeRemaining);
+
+    // 1. Level time countdown (Throttled callback)
+    this.levelTimeRemaining -= dt;
+    if (this.levelTimeRemaining <= 0) {
+      if (this.currentLevel < this.totalLevels) {
+        this.advanceToNextLevel();
+      } else {
+        this.levelTimeRemaining = 0;
+        this.callbacks.onTimeUpdate(0);
+        this.callbacks.onLevelUpdate?.(
+          this.currentLevel,
+          this.totalLevels,
+          this.levelNames[this.currentLevel - 1],
+          0
+        );
+        this.handleVictory();
+        return;
+      }
+    }
+
+    const currentCeilTime = Math.ceil(this.levelTimeRemaining);
     if (currentCeilTime !== this.lastReportedTime) {
       this.lastReportedTime = currentCeilTime;
       this.callbacks.onTimeUpdate(currentCeilTime);
+      this.callbacks.onLevelUpdate?.(
+        this.currentLevel,
+        this.totalLevels,
+        this.levelNames[this.currentLevel - 1],
+        currentCeilTime
+      );
     }
 
-    // Check 30s milestone for Boss Entrance
-    if (this.timeRemaining <= 30 && !this.bossSpawned) {
-      this.spawnMidBoss();
+    // Milestones per level:
+    // Level 1: Sector Alpha (45s) -> Boss at 22s
+    if (this.currentLevel === 1) {
+      if (this.levelTimeRemaining <= 22 && !this.mainBossSpawned) {
+        this.mainBossSpawned = true;
+        this.spawnMainBoss(1);
+      }
+    }
+    // Level 2: Sector Beta (60s) -> Sub-Boss 1 (Voidstalker) at 38s, Main Boss at 20s
+    else if (this.currentLevel === 2) {
+      if (this.levelTimeRemaining <= 38 && !this.subBoss1Spawned) {
+        this.subBoss1Spawned = true;
+        this.spawnSubBossStalker();
+      }
+      if (this.levelTimeRemaining <= 20 && !this.mainBossSpawned) {
+        this.mainBossSpawned = true;
+        this.spawnMainBoss(2);
+      }
+    }
+    // Level 3: Sector Omega Core (75s) -> Sub-Boss 1 at 55s, Sub-Boss 2 (Siegebeast) at 38s, Supreme Boss at 22s
+    else if (this.currentLevel === 3) {
+      if (this.levelTimeRemaining <= 55 && !this.subBoss1Spawned) {
+        this.subBoss1Spawned = true;
+        this.spawnSubBossStalker();
+      }
+      if (this.levelTimeRemaining <= 38 && !this.subBoss2Spawned) {
+        this.subBoss2Spawned = true;
+        this.spawnSubBossSiege();
+      }
+      if (this.levelTimeRemaining <= 22 && !this.mainBossSpawned) {
+        this.mainBossSpawned = true;
+        this.spawnMainBoss(3);
+      }
     }
 
-    // Check 50s milestone (10 seconds remaining) for Hyper Survival Surge
-    if (this.timeRemaining <= 10 && !this.hyperSurgeTriggered) {
+    // Final 10 seconds of current level: Hyper Survival Surge
+    if (this.levelTimeRemaining <= 10 && !this.hyperSurgeTriggered) {
       this.triggerHyperSurge();
     }
 
@@ -1260,7 +1373,8 @@ export class ChogScene extends Phaser.Scene {
       this.lastFireTime = time;
 
       let fireAngle = this.aimAngle;
-      if (this.enemies.length > 0 && !this.input.activePointer.isDown && !this.isTouchAiming) {
+      const canAutoAim = this.autoAimEnabled && !this.isAimScrambled;
+      if (canAutoAim && this.enemies.length > 0 && !this.input.activePointer.isDown && !this.isTouchAiming) {
         let nearestDist = Infinity;
         let nearestEnemy: Enemy | null = null;
         for (const e of this.enemies) {
@@ -1474,12 +1588,14 @@ export class ChogScene extends Phaser.Scene {
   private nextSpawnTime = 0;
   private updateEnemies(dt: number) {
     const now = this.time.now;
-    const elapsed = 60 - this.timeRemaining;
+    const elapsed = this.getLevelDuration(this.currentLevel) - this.levelTimeRemaining;
 
+    // Faster spawn intervals and higher enemy density in higher sectors
+    const densityMult = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.35 : 1.6;
     const spawnInterval = Phaser.Math.Clamp(
-      (1.5 - (elapsed / 60) * 1.1) / this.configData.dailyDream.spawnRateMultiplier,
-      0.35,
-      2.0
+      ((1.4 - (elapsed / 60) * 1.0) / (this.configData.dailyDream.spawnRateMultiplier * densityMult)),
+      0.25,
+      1.8
     ) * 1000;
 
     if (now >= this.nextSpawnTime) {
@@ -1492,7 +1608,7 @@ export class ChogScene extends Phaser.Scene {
 
       // Check if dead
       if (enemy.hp <= 0) {
-        soundSynth.playExplosion(enemy.isBoss);
+        soundSynth.playExplosion(enemy.isBoss || enemy.isSubBoss);
         this.enemiesDefeated++;
 
         // Combo counter
@@ -1511,27 +1627,36 @@ export class ChogScene extends Phaser.Scene {
         const points = Math.round(enemy.scoreValue * this.configData.difficulty.scoreMultiplier * midasMult);
         this.score += points;
         this.callbacks.onScoreUpdate(this.score);
-        this.showScoreText(enemy.sprite.x, enemy.sprite.y, points, enemy.isBoss);
-        this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 0xa855f7 : 0xef4444);
+        this.showScoreText(enemy.sprite.x, enemy.sprite.y, points, enemy.isBoss || enemy.isSubBoss);
+        this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 0xa855f7 : enemy.isSubBoss ? 0x06b6d4 : 0xef4444);
 
-        // Charge Avatar Ultimate Essence
-        this.addEssence(enemy.isBoss ? 20 : 4.0);
+        // Charge Avatar Ultimate Essence (Boss: 25, Sub-Boss: 14, Minion: 4)
+        this.addEssence(enemy.isBoss ? 25 : enemy.isSubBoss ? 14 : 4.0);
 
         // Spawn gem
-        this.spawnGem(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 500 : 50);
+        this.spawnGem(enemy.sprite.x, enemy.sprite.y, enemy.isBoss ? 500 : enemy.isSubBoss ? 250 : 50);
 
-        // Chance to spawn skill drop (Guaranteed on Boss, 14% on normal enemies)
-        const skillDropRoll = this.rng.next();
-        if (enemy.isBoss || skillDropRoll < 0.14) {
+        // Guaranteed skill drop on Bosses & Sub-Bosses; scaled drop rate for normal enemies per level:
+        // Sector 1: 6%, Sector 2: 10%, Sector 3: 15%
+        const levelDropRates = [0.06, 0.10, 0.15];
+        const baseDropRate = levelDropRates[this.currentLevel - 1] ?? 0.10;
+        const isHighValue = enemy.isBoss || enemy.isSubBoss;
+        if (isHighValue || this.rng.next() < baseDropRate) {
           this.spawnSkillPickup(enemy.sprite.x, enemy.sprite.y);
+        }
+
+        if (enemy.isSubBoss) {
+          this.callbacks.onComboAlert?.(`⚔️ SUB-BOSS ${enemy.bossName ?? ''} ELIMINATED!`);
+          this.cameras.main.shake(250, 0.015);
+          this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, 0x22d3ee, 24);
         }
 
         if (enemy.isBoss) {
           this.bossesDefeated++;
           this.activeBoss = null;
           this.callbacks.onBossHpUpdate?.(null, 0, 0);
-          this.callbacks.onComboAlert?.('BOSS VANQUISHED! +2,500');
-          this.cameras.main.shake(350, 0.02);
+          this.callbacks.onComboAlert?.(`👑 ${enemy.bossName ?? 'BOSS'} VANQUISHED! +${points.toLocaleString()}`);
+          this.cameras.main.shake(400, 0.025);
           this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, 0xfacc15, 36);
           this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, 0xa855f7, 24);
         }
@@ -1547,12 +1672,50 @@ export class ChogScene extends Phaser.Scene {
         continue; // Do not move while frozen!
       }
 
-      // Boss Special Abilities
+      // Boss Cheat Skills & Attacks
       if (enemy.isBoss) {
         enemy.bossSkillTimer = (enemy.bossSkillTimer || 0) + dt;
         if (enemy.bossSkillTimer >= 4.0) {
           enemy.bossSkillTimer = 0;
           this.triggerBossRadialBarrage(enemy.sprite.x, enemy.sprite.y);
+        }
+
+        // Sector 2 & 3 Cheat Skill: Targeting Scrambler EMP
+        if (this.currentLevel >= 2) {
+          enemy.cheatSkillTimer = (enemy.cheatSkillTimer || 0) + dt;
+          if (enemy.cheatSkillTimer >= 10.0) {
+            enemy.cheatSkillTimer = 0;
+            this.triggerBossScramblerEMP();
+          }
+        }
+
+        // Sector 3 Gravitational Core Pull
+        if (this.currentLevel === 3) {
+          const pullDx = enemy.sprite.x - this.playerContainer.x;
+          const pullDy = enemy.sprite.y - this.playerContainer.y;
+          const pullDist = Math.hypot(pullDx, pullDy);
+          if (pullDist > 40 && pullDist < 420) {
+            this.vx += (pullDx / pullDist) * 35 * dt;
+            this.vy += (pullDy / pullDist) * 35 * dt;
+          }
+        }
+      }
+
+      // Sub-Boss 1 (Apex Voidstalker): Phase Blink Ambush
+      if (enemy.type === 'subboss_stalker') {
+        enemy.bossSkillTimer = (enemy.bossSkillTimer || 0) + dt;
+        if (enemy.bossSkillTimer >= 5.5) {
+          enemy.bossSkillTimer = 0;
+          this.triggerVoidstalkerBlink(enemy);
+        }
+      }
+
+      // Sub-Boss 2 (Infernal Siegebeast): Cluster Mine Barrage
+      if (enemy.type === 'subboss_siege') {
+        enemy.bossSkillTimer = (enemy.bossSkillTimer || 0) + dt;
+        if (enemy.bossSkillTimer >= 6.0) {
+          enemy.bossSkillTimer = 0;
+          this.triggerSiegeMines(enemy);
         }
       }
 
@@ -1574,10 +1737,10 @@ export class ChogScene extends Phaser.Scene {
       }
 
       // Damage player on contact
-      const contactRadius = enemy.isBoss ? 42 : 22;
+      const contactRadius = enemy.isBoss ? 44 : enemy.isSubBoss ? 32 : 22;
       if (dist < contactRadius) {
         if (!this.isShielded) {
-          const dmg = enemy.isBoss ? 30 : 12;
+          const dmg = enemy.isBoss ? 30 : enemy.isSubBoss ? 20 : 12;
           this.takeDamage(dmg);
         }
         this.vx += (dx / dist) * 120;
@@ -1586,11 +1749,182 @@ export class ChogScene extends Phaser.Scene {
     }
   }
 
-  private spawnMidBoss() {
+  private getLevelDuration(level: number): number {
+    if (level === 1) return 45;
+    if (level === 2) return 60;
+    return 75;
+  }
+
+  private advanceToNextLevel() {
+    this.currentLevel++;
+    const duration = this.getLevelDuration(this.currentLevel);
+    this.levelTimeRemaining = duration;
+    this.lastReportedTime = duration;
+
+    // Reset boss / sub-boss states for the new sector
+    this.subBoss1Spawned = false;
+    this.subBoss2Spawned = false;
+    this.mainBossSpawned = false;
+    this.bossSpawned = false;
+    this.activeBoss = null;
+    this.hyperSurgeTriggered = false;
+
+    // Sector Completion Bonus Score & HP Repair
+    const bonusPoints = this.currentLevel === 2 ? 3500 : 6000;
+    this.score += bonusPoints;
+    this.callbacks.onScoreUpdate(this.score);
+
+    this.hp = Math.min(this.maxHp, this.hp + 35);
+    this.callbacks.onHpUpdate(this.hp, this.maxHp);
+
+    soundSynth.playLevelUp();
+    soundSynth.triggerHaptic(100);
+    this.cameras.main.flash(350, 255, 255, 255);
+    this.cameras.main.shake(400, 0.025);
+
+    this.callbacks.onComboAlert?.(`🚀 ADVANCED TO SECTOR ${this.currentLevel}! +${bonusPoints.toLocaleString()} PTS`);
+    this.callbacks.onChaosAlert(`WARP: ${this.levelNames[this.currentLevel - 1].toUpperCase()}`);
+    this.callbacks.onLevelUpdate?.(
+      this.currentLevel,
+      this.totalLevels,
+      this.levelNames[this.currentLevel - 1],
+      Math.ceil(this.levelTimeRemaining)
+    );
+
+    // Vaporize minor non-boss enemies to give breathing room for the new sector
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const e = this.enemies[i];
+      if (!e.isBoss && !e.isSubBoss) {
+        e.sprite.destroy();
+        this.enemies.splice(i, 1);
+      }
+    }
+  }
+
+  private spawnSubBossStalker() {
+    soundSynth.playBossAlert();
+    this.cameras.main.shake(350, 0.02);
+    this.callbacks.onComboAlert?.('⚠️ SUB-BOSS ALERT: APEX VOIDSTALKER INBOUND!');
+
+    const { width } = this.scale;
+    const x = this.rng.next() < 0.5 ? 90 : width - 90;
+    const y = 90;
+
+    const container = this.add.container(x, y);
+
+    // Neon cyan & violet hunter aesthetic
+    const aura = this.add.circle(0, 0, 32, 0x06b6d4, 0.3);
+    const body = this.add.polygon(0, 0, [
+      0, -24,
+      18, 0,
+      10, 20,
+      -10, 20,
+      -18, 0
+    ], 0x4f46e5);
+    body.setStrokeStyle(2, 0x22d3ee);
+
+    const eye = this.add.circle(0, -6, 7, 0xf43f5e);
+    eye.setStrokeStyle(1.5, 0xffffff);
+
+    const label = this.add.text(0, -32, 'APEX VOIDSTALKER', {
+      fontFamily: 'monospace',
+      fontSize: '8px',
+      fontStyle: 'bold',
+      color: '#22d3ee',
+    });
+    label.setOrigin(0.5);
+
+    container.add([aura, body, eye, label]);
+
+    this.tweens.add({
+      targets: aura,
+      scale: 1.3,
+      alpha: 0.1,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+    });
+
+    const hp = Math.round(300 * this.configData.difficulty.difficultyMultiplier * (this.currentLevel === 3 ? 1.3 : 1.0));
+
+    const enemy: Enemy = {
+      sprite: container,
+      type: 'subboss_stalker',
+      hp,
+      maxHp: hp,
+      speed: 110,
+      scoreValue: 1800,
+      slowTimer: 0,
+      frozenTimer: 0,
+      isSubBoss: true,
+      bossSkillTimer: 0,
+      bossName: 'APEX VOIDSTALKER',
+    };
+
+    this.enemies.push(enemy);
+  }
+
+  private spawnSubBossSiege() {
+    soundSynth.playBossAlert();
+    this.cameras.main.shake(400, 0.025);
+    this.callbacks.onComboAlert?.('💣 SUB-BOSS ALERT: INFERNAL SIEGEBEAST DEPLOYED!');
+
+    const { width, height } = this.scale;
+    const x = width / 2;
+    const y = height - 90;
+
+    const container = this.add.container(x, y);
+
+    // Armored crimson heavy dread-brute
+    const aura = this.add.circle(0, 0, 38, 0xef4444, 0.35);
+    const body = this.add.rectangle(0, 0, 46, 46, 0x991b1b);
+    body.setStrokeStyle(3, 0xf97316);
+
+    const core = this.add.circle(0, 0, 12, 0xfacc15);
+    core.setStrokeStyle(2, 0xffffff);
+
+    const label = this.add.text(0, -32, 'INFERNAL SIEGEBEAST', {
+      fontFamily: 'monospace',
+      fontSize: '8px',
+      fontStyle: 'bold',
+      color: '#f97316',
+    });
+    label.setOrigin(0.5);
+
+    container.add([aura, body, core, label]);
+
+    this.tweens.add({
+      targets: aura,
+      scale: 1.25,
+      alpha: 0.15,
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+    });
+
+    const hp = Math.round(440 * this.configData.difficulty.difficultyMultiplier);
+
+    const enemy: Enemy = {
+      sprite: container,
+      type: 'subboss_siege',
+      hp,
+      maxHp: hp,
+      speed: 55,
+      scoreValue: 2200,
+      slowTimer: 0,
+      frozenTimer: 0,
+      isSubBoss: true,
+      bossSkillTimer: 0,
+      bossName: 'INFERNAL SIEGEBEAST',
+    };
+
+    this.enemies.push(enemy);
+  }
+
+  private spawnMainBoss(level: number) {
     this.bossSpawned = true;
     soundSynth.playBossSiren();
-    this.cameras.main.shake(400, 0.02);
-    this.callbacks.onComboAlert?.('⚠️ WARNING: VOID COLOSSUS EMERGES!');
+    this.cameras.main.shake(450, 0.025);
 
     const { width } = this.scale;
     const bx = width / 2;
@@ -1598,44 +1932,212 @@ export class ChogScene extends Phaser.Scene {
 
     const bossContainer = this.add.container(bx, by);
 
-    // Glowing purple & red boss body
-    const aura = this.add.circle(0, 0, 48, 0xa855f7, 0.35);
-    const body = this.add.rectangle(0, 0, 56, 56, 0x581c87);
-    body.setStrokeStyle(3, 0xd8b4fe);
-    const eye = this.add.circle(0, 0, 14, 0xef4444);
+    const isOmega = level === 3;
+    const isBeta = level === 2;
+
+    const bossName = isOmega
+      ? 'OMEGA DREADNOUGHT PRIME'
+      : isBeta
+      ? 'VOID COLOSSUS OVERCHARGED'
+      : 'VOID COLOSSUS';
+
+    this.callbacks.onComboAlert?.(`⚠️ WARNING: ${bossName} EMERGES!`);
+
+    // Aura & Body styling per sector
+    const auraColor = isOmega ? 0xef4444 : isBeta ? 0x06b6d4 : 0xa855f7;
+    const bodyColor = isOmega ? 0x450a0a : isBeta ? 0x083344 : 0x581c87;
+    const strokeColor = isOmega ? 0xfacc15 : isBeta ? 0x38bdf8 : 0xd8b4fe;
+
+    const aura = this.add.circle(0, 0, isOmega ? 58 : 48, auraColor, 0.35);
+    const body = this.add.rectangle(0, 0, isOmega ? 68 : 56, isOmega ? 68 : 56, bodyColor);
+    body.setStrokeStyle(3, strokeColor);
+
+    const eye = this.add.circle(0, 0, isOmega ? 18 : 14, isOmega ? 0xfacc15 : 0xef4444);
     eye.setStrokeStyle(2, 0xffffff);
 
-    bossContainer.add([aura, body, eye]);
+    const label = this.add.text(0, isOmega ? -46 : -38, bossName, {
+      fontFamily: 'monospace',
+      fontSize: '8px',
+      fontStyle: 'bold',
+      color: `#${strokeColor.toString(16).padStart(6, '0')}`,
+    });
+    label.setOrigin(0.5);
+
+    bossContainer.add([aura, body, eye, label]);
 
     this.tweens.add({
       targets: aura,
-      scale: 1.3,
-      alpha: 0.15,
+      scale: 1.35,
+      alpha: 0.12,
       duration: 600,
       yoyo: true,
       repeat: -1,
     });
 
-    const bossHp = Math.round(550 * this.configData.difficulty.difficultyMultiplier);
+    const baseHp = isOmega ? 1150 : isBeta ? 780 : 520;
+    const bossHp = Math.round(baseHp * this.configData.difficulty.difficultyMultiplier);
 
     const bossEnemy: Enemy = {
       sprite: bossContainer,
       type: 'boss',
       hp: bossHp,
       maxHp: bossHp,
-      speed: 48,
-      scoreValue: 2500,
+      speed: isOmega ? 52 : 48,
+      scoreValue: isOmega ? 5000 : isBeta ? 3500 : 2500,
       slowTimer: 0,
       frozenTimer: 0,
       isBoss: true,
       bossSkillTimer: 0,
+      bossName,
     };
 
     this.activeBoss = bossEnemy;
     this.enemies.push(bossEnemy);
 
     if (this.callbacks.onBossHpUpdate) {
-      this.callbacks.onBossHpUpdate('VOID COLOSSUS', bossHp, bossHp);
+      this.callbacks.onBossHpUpdate(bossName, bossHp, bossHp);
+    }
+  }
+
+  private triggerVoidstalkerBlink(stalker: Enemy) {
+    soundSynth.playLaser(true);
+    soundSynth.triggerHaptic(60);
+    this.cameras.main.shake(200, 0.015);
+
+    // Particle flash at origin
+    this.spawnParticleRing(stalker.sprite.x, stalker.sprite.y, 0x06b6d4, 18);
+
+    // Teleport 95px behind player's movement trajectory
+    const moveLen = Math.hypot(this.vx, this.vy);
+    const dirAngle = moveLen > 10 ? Math.atan2(this.vy, this.vx) : this.aimAngle;
+    const behindAngle = dirAngle + Math.PI;
+
+    const { width, height } = this.scale;
+    const targetX = Phaser.Math.Clamp(this.playerContainer.x + Math.cos(behindAngle) * 95, 60, width - 60);
+    const targetY = Phaser.Math.Clamp(this.playerContainer.y + Math.sin(behindAngle) * 95, 60, height - 60);
+
+    stalker.sprite.setPosition(targetX, targetY);
+    this.spawnParticleRing(targetX, targetY, 0xf43f5e, 22);
+
+    this.callbacks.onChaosAlert('⚠️ VOIDSTALKER PHASE BLINKED BEHIND YOU!');
+
+    // Fire 3 fast plasma bolts at the player's back
+    const angleToPlayer = Math.atan2(this.playerContainer.y - targetY, this.playerContainer.x - targetX);
+    [-0.2, 0, 0.2].forEach((offset) => {
+      const bullet = this.add.circle(targetX, targetY, 5, 0x22d3ee);
+      bullet.setStrokeStyle(1.5, 0xffffff);
+      this.hazards.push({
+        circle: bullet,
+        timer: 2.5,
+        x: targetX,
+        y: targetY,
+        radius: 10,
+      });
+      this.tweens.add({
+        targets: bullet,
+        x: targetX + Math.cos(angleToPlayer + offset) * 450,
+        y: targetY + Math.sin(angleToPlayer + offset) * 450,
+        duration: 1500,
+        onUpdate: () => {
+          const d = Math.hypot(this.playerContainer.x - bullet.x, this.playerContainer.y - bullet.y);
+          if (d < 18 && !this.isShielded) {
+            this.takeDamage(15);
+            bullet.destroy();
+          }
+        },
+        onComplete: () => bullet.destroy(),
+      });
+    });
+  }
+
+  private triggerSiegeMines(siege: Enemy) {
+    soundSynth.playExplosion(false);
+    this.cameras.main.shake(250, 0.015);
+    this.callbacks.onChaosAlert('💣 SIEGEBEAST DEPLOYED CLUSTER MINES!');
+
+    const { width, height } = this.scale;
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2 + (Math.random() * 0.4 - 0.2);
+      const dist = 90 + Math.random() * 40;
+      const mx = Phaser.Math.Clamp(this.playerContainer.x + Math.cos(angle) * dist, 50, width - 50);
+      const my = Phaser.Math.Clamp(this.playerContainer.y + Math.sin(angle) * dist, 50, height - 50);
+
+      const mine = this.add.circle(mx, my, 8, 0xef4444);
+      mine.setStrokeStyle(2, 0xfacc15);
+
+      const warningRing = this.add.circle(mx, my, 28, 0xef4444, 0.18);
+      warningRing.setStrokeStyle(1.5, 0xf97316);
+
+      this.tweens.add({
+        targets: [mine, warningRing],
+        scale: 1.25,
+        alpha: 0.4,
+        duration: 400,
+        yoyo: true,
+        repeat: 5,
+        onComplete: () => {
+          mine.destroy();
+          warningRing.destroy();
+        },
+      });
+
+      this.hazards.push({
+        circle: mine,
+        timer: 3.2,
+        x: mx,
+        y: my,
+        radius: 26,
+      });
+
+      const checkTimer = this.time.addEvent({
+        delay: 80,
+        repeat: 35,
+        callback: () => {
+          if (!mine.active) return;
+          const d = Math.hypot(this.playerContainer.x - mine.x, this.playerContainer.y - mine.y);
+          if (d < 28) {
+            checkTimer.remove();
+            soundSynth.playExplosion(false);
+            this.spawnParticleRing(mine.x, mine.y, 0xef4444, 20);
+            if (!this.isShielded) {
+              this.takeDamage(24);
+            }
+            mine.destroy();
+            warningRing.destroy();
+          }
+        },
+      });
+    }
+  }
+
+  private triggerBossScramblerEMP() {
+    this.isAimScrambled = true;
+    this.scrambleTimer = 7.0;
+
+    soundSynth.playBossAlert();
+    soundSynth.triggerHaptic(90);
+    this.cameras.main.flash(300, 239, 68, 68);
+    this.cameras.main.shake(400, 0.025);
+
+    this.callbacks.onChaosAlert('⚠️ EMP SCRAMBLER ACTIVATED! MANUAL AIM ONLY!');
+    this.callbacks.onComboAlert?.('⚡ AUTO-AIM JAMMED FOR 7 SECONDS!');
+    this.callbacks.onAutoAimStatus?.(this.autoAimEnabled, true);
+
+    if (this.activeBoss) {
+      for (let i = 0; i < 3; i++) {
+        this.time.delayedCall(i * 180, () => {
+          if (!this.activeBoss) return;
+          const ring = this.add.circle(this.activeBoss.sprite.x, this.activeBoss.sprite.y, 30, 0xef4444, 0.5);
+          ring.setStrokeStyle(3, 0xfacc15);
+          this.tweens.add({
+            targets: ring,
+            scale: 14,
+            alpha: 0,
+            duration: 800,
+            onComplete: () => ring.destroy(),
+          });
+        });
+      }
     }
   }
 
@@ -1753,7 +2255,11 @@ export class ChogScene extends Phaser.Scene {
     const picked = this.rng.pick(skills);
     const meta = BONUS_SKILL_META[picked];
 
-    const container = this.add.container(x, y);
+    // Ensure power-up crate never spawns off-screen or unreachable at the edge
+    const clampedX = Phaser.Math.Clamp(x, 65, this.scale.width - 65);
+    const clampedY = Phaser.Math.Clamp(y, 65, this.scale.height - 65);
+
+    const container = this.add.container(clampedX, clampedY);
 
     // Outer pulsating beacon ring
     const beacon = this.add.circle(0, 0, 24, meta.color, 0.25);
@@ -1799,13 +2305,15 @@ export class ChogScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    this.skillPickups.push({ container, type: picked, x, y, meta });
+    this.skillPickups.push({ container, type: picked, x: clampedX, y: clampedY, meta });
   }
 
   private spawnGem(x: number, y: number, value: number) {
-    const gem = this.add.circle(x, y, 4, 0xfacc15);
+    const clampedX = Phaser.Math.Clamp(x, 40, this.scale.width - 40);
+    const clampedY = Phaser.Math.Clamp(y, 40, this.scale.height - 40);
+    const gem = this.add.circle(clampedX, clampedY, 4, 0xfacc15);
     gem.setStrokeStyle(1, 0xffffff);
-    this.gems.push({ sprite: gem, x, y, value });
+    this.gems.push({ sprite: gem, x: clampedX, y: clampedY, value });
   }
 
   private updatePickups(dt: number) {
@@ -1896,26 +2404,27 @@ export class ChogScene extends Phaser.Scene {
 
     const container = this.add.container(x, y);
 
+    const levelSpeedFactor = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.3 : 1.5;
     let hp = 15;
-    let speed = 90;
+    let speed = 90 * levelSpeedFactor;
     let scoreVal = 100;
 
     if (type === 'wasp') {
       hp = 12;
-      speed = 145;
+      speed = 145 * levelSpeedFactor;
       scoreVal = 150;
       const waspBody = this.add.triangle(0, 0, 0, -12, 12, 12, -12, 12, 0xf59e0b);
       container.add(waspBody);
     } else if (type === 'brute') {
       hp = 65;
-      speed = 60;
+      speed = 60 * levelSpeedFactor;
       scoreVal = 300;
       const bruteBody = this.add.rectangle(0, 0, 28, 28, 0xef4444);
       bruteBody.setStrokeStyle(2, 0xffffff);
       container.add(bruteBody);
     } else {
       hp = 18;
-      speed = 95;
+      speed = 95 * levelSpeedFactor;
       scoreVal = 100;
       const droneBody = this.add.circle(0, 0, 12, 0x8b5cf6);
       droneBody.setStrokeStyle(1.5, 0xc084fc);
@@ -2027,7 +2536,7 @@ export class ChogScene extends Phaser.Scene {
     soundSynth.stopBgm();
     soundSynth.playGameOver();
     soundSynth.triggerHaptic(80);
-    const survived = Math.round(60 - this.timeRemaining);
+    const survived = Math.round(this.totalSurvivedSeconds);
 
     const results: RunResults = {
       tokenId: this.configData.tokenId,
@@ -2038,6 +2547,7 @@ export class ChogScene extends Phaser.Scene {
       bossesDefeated: this.bossesDefeated,
       skillsCollected: this.skillsCollected,
       overclockLevel: this.overclockLevel,
+      levelReached: this.currentLevel,
       victory: false,
       personalBest: 0,
       skullCount: 0,
@@ -2057,12 +2567,13 @@ export class ChogScene extends Phaser.Scene {
     const results: RunResults = {
       tokenId: this.configData.tokenId,
       chogName: `Chog #${this.configData.tokenId}`,
-      survivedSeconds: 60,
-      score: this.score + 5000,
+      survivedSeconds: Math.round(this.totalSurvivedSeconds),
+      score: this.score + 10000,
       enemiesDefeated: this.enemiesDefeated,
       bossesDefeated: this.bossesDefeated,
       skillsCollected: this.skillsCollected,
       overclockLevel: this.overclockLevel,
+      levelReached: this.currentLevel,
       victory: true,
       personalBest: 0,
       skullCount: 0,

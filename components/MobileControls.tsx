@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Shield, Zap, Star } from 'lucide-react';
+import { Shield, Zap, Star, Crosshair } from 'lucide-react';
 
 interface MobileControlsProps {
   onMove: (x: number, y: number) => void;
@@ -11,6 +11,9 @@ interface MobileControlsProps {
   abilityCooldown: number;
   abilityReady: boolean;
   abilityName: string;
+  autoAimEnabled?: boolean;
+  isAimScrambled?: boolean;
+  onToggleAutoAim?: () => void;
 }
 
 export default function MobileControls({
@@ -21,6 +24,9 @@ export default function MobileControls({
   abilityCooldown,
   abilityReady,
   abilityName,
+  autoAimEnabled = true,
+  isAimScrambled = false,
+  onToggleAutoAim,
 }: MobileControlsProps) {
   const joystickRef = useRef<HTMLDivElement>(null);
   const [activeTouchId, setActiveTouchId] = useState<number | null>(null);
@@ -116,6 +122,30 @@ export default function MobileControls({
 
       {/* Action Buttons: Ability and Ultimate */}
       <div className="flex items-center space-x-3">
+        {/* Auto-Aim Toggle Button */}
+        {onToggleAutoAim && (
+          <div className="flex flex-col items-center space-y-1">
+            <button
+              onClick={onToggleAutoAim}
+              className={`flex h-16 w-14 flex-col items-center justify-center rounded-2xl border-2 font-mono transition active:scale-95 ${
+                isAimScrambled
+                  ? 'border-red-500 bg-red-950/60 text-red-400 animate-pulse'
+                  : autoAimEnabled
+                  ? 'border-cyan-400 bg-cyan-500/20 text-cyan-300'
+                  : 'border-zinc-700 bg-zinc-900/50 text-zinc-500'
+              }`}
+            >
+              <Crosshair className={`h-5 w-5 ${isAimScrambled ? 'animate-spin' : ''}`} />
+              <span className="mt-0.5 text-[8px] font-black">
+                {isAimScrambled ? 'JAMMED' : autoAimEnabled ? 'AUTO' : 'MANUAL'}
+              </span>
+            </button>
+            <span className="text-[8px] font-mono text-zinc-400">
+              {isAimScrambled ? 'EMP' : 'AIM'}
+            </span>
+          </div>
+        )}
+
         {/* Trait Ability Button */}
         <div className="flex flex-col items-center space-y-1">
           <button

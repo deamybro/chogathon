@@ -11,6 +11,7 @@ export interface PhaserGameHandle {
   triggerAbility: () => void;
   triggerUltimate: () => void;
   setTouchMovement: (x: number, y: number) => void;
+  toggleAutoAim: () => boolean;
 }
 
 export interface PhaserGameProps {
@@ -58,6 +59,15 @@ const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
             scene.setTouchMovement(x, y);
           }
         }
+      },
+      toggleAutoAim: () => {
+        if (gameRef.current) {
+          const scene = gameRef.current.scene.getScene('ChogScene') as ChogScene;
+          if (scene) {
+            return scene.toggleAutoAim();
+          }
+        }
+        return false;
       },
     }));
 

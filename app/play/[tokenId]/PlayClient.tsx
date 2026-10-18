@@ -42,6 +42,8 @@ import {
   FastForward,
   Coins,
   Magnet,
+  Crosshair,
+  Layers,
 } from 'lucide-react';
 
 function renderPowerupIcon(iconName: string, className = 'h-3.5 w-3.5') {
@@ -122,6 +124,25 @@ export default function PlayClient({
     icon: string;
   } | null>(null);
 
+  // Multi-Level Sector Escalation state
+  const [levelInfo, setLevelInfo] = useState<{
+    current: number;
+    total: number;
+    name: string;
+    timeInLevel: number;
+  }>({
+    current: 1,
+    total: 3,
+    name: 'Sector Alpha: Incursion',
+    timeInLevel: 45,
+  });
+
+  // Auto-Aim & Jammer Scrambler state
+  const [autoAim, setAutoAim] = useState<{ enabled: boolean; isScrambled: boolean }>({
+    enabled: true,
+    isScrambled: false,
+  });
+
   // Input & reactive control triggers
   const [abilityTriggerCount, setAbilityTriggerCount] = useState(0);
   const [touchVector, setTouchVector] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -157,7 +178,14 @@ export default function PlayClient({
     setRunResults(null);
     setHasStarted(false);
     setScore(0);
-    setTimeRemaining(60);
+    setTimeRemaining(45);
+    setLevelInfo({
+      current: 1,
+      total: 3,
+      name: 'Sector Alpha: Incursion',
+      timeInLevel: 45,
+    });
+    setAutoAim({ enabled: true, isScrambled: false });
     setAbilityCooldown(0);
     setAbilityReady(true);
     setEssence({ current: 0, max: 100, isReady: false, isActive: false });
@@ -181,6 +209,14 @@ export default function PlayClient({
       soundSynth.stopBgm();
     }
   };
+
+  // Toggle Auto-Aim
+  const handleToggleAutoAim = useCallback(() => {
+    if (gameHandleRef.current) {
+      const next = gameHandleRef.current.toggleAutoAim();
+      setAutoAim((prev) => ({ ...prev, enabled: next }));
+    }
+  }, []);
 
   // Trigger active ability
   const handleTriggerAbility = useCallback(() => {
@@ -217,6 +253,12 @@ export default function PlayClient({
       },
       onTimeUpdate: (seconds: number) => {
         setTimeRemaining(seconds);
+      },
+      onLevelUpdate: (currentLevel: number, totalLevels: number, levelName: string, timeInLevel: number) => {
+        setLevelInfo({ current: currentLevel, total: totalLevels, name: levelName, timeInLevel });
+      },
+      onAutoAimStatus: (enabled: boolean, isScrambled: boolean) => {
+        setAutoAim({ enabled, isScrambled });
       },
       onAbilityState: (cooldown: number, ready: boolean) => {
         setAbilityCooldown(cooldown);
@@ -456,6 +498,14 @@ export default function PlayClient({
               </div>
             )}
 
+            {/* Targeting Scrambler EMP Glitch Warning Banner */}
+            {autoAim.isScrambled && (
+              <div className="absolute top-14 z-30 flex items-center space-x-2 rounded-xl border-2 border-red-500 bg-black/95 px-4 py-2 font-mono text-xs font-black text-red-400 shadow-[0_0_25px_rgba(239,68,68,0.8)] animate-pulse">
+                <AlertTriangle className="h-4 w-4 text-red-500 animate-spin" />
+                <span>⚠️ EMP INTERFERENCE: TARGETING JAMMED! MANUAL AIM ACTIVE!</span>
+              </div>
+            )}
+
             {/* Floating Combo Alert */}
             {comboAlert && (
               <div className="absolute top-16 z-30 animate-bounce rounded-lg border border-amber-400 bg-black/90 px-4 py-1.5 font-mono text-sm font-black text-amber-300 shadow-[0_0_20px_rgba(250,204,21,0.6)]">
@@ -520,7 +570,7 @@ export default function PlayClient({
                     {initialChog.name}
                   </h3>
                   <p className="mt-1 font-mono text-xs text-zinc-400">
-                    Survive for 60 seconds. Defeat escalating swarms & bosses.
+                    Survive 3 escalating sectors (Alpha • Beta • Omega). Conquer Sub-Bosses & Cheat Skills!
                   </p>
 
                   <button
@@ -528,7 +578,7 @@ export default function PlayClient({
                     className="mt-6 flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3.5 px-6 font-mono text-sm font-black text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] transition hover:bg-emerald-400 active:scale-95"
                   >
                     <Play className="h-5 w-5 fill-current" />
-                    <span>START RUN (60s)</span>
+                    <span>START RUN (3 SECTORS)</span>
                   </button>
 
                   {/* Controls hint */}
@@ -536,6 +586,10 @@ export default function PlayClient({
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Movement:</span>
                       <span className="text-zinc-200">WASD / Arrow Keys</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Targeting:</span>
+                      <span className="text-cyan-300">[T] Toggle Auto / Manual Aim</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Aim & Fire:</span>
@@ -562,18 +616,26 @@ export default function PlayClient({
           {/* RIGHT PANEL: HUD, BONUS SKILLS & RUN CONTROLS (col-span-3) */}
           <div className="p-4 lg:col-span-3 flex flex-col justify-between space-y-3">
             <div className="space-y-3">
-              {/* Timer Block */}
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5">
+              {/* Multi-Level Sector Escalation Block */}
+              <div className="rounded-xl border border-purple-500/40 bg-purple-950/20 p-2.5">
                 <div className="flex items-center justify-between font-mono text-xs">
-                  <span className="text-zinc-500 uppercase font-bold">Survive Timer</span>
-                  <span className={`text-xl font-black ${timeRemaining <= 10 ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
+                  <span className="flex items-center space-x-1.5 font-bold uppercase text-purple-300">
+                    <Layers className="h-3.5 w-3.5 text-purple-400" />
+                    <span>Sector {levelInfo.current} / {levelInfo.total}</span>
+                  </span>
+                  <span className={`text-base font-black ${timeRemaining <= 10 ? 'text-red-400 animate-pulse' : 'text-purple-300'}`}>
                     {timeRemaining}s
                   </span>
                 </div>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+                <p className="mt-0.5 text-[10px] font-mono font-bold text-zinc-300 truncate">
+                  {levelInfo.name}
+                </p>
+                <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-800 border border-purple-500/30">
                   <div
-                    style={{ width: `${(timeRemaining / 60) * 100}%` }}
-                    className="h-full bg-emerald-500 transition-all duration-300"
+                    style={{
+                      width: `${Math.min(100, Math.max(0, (timeRemaining / (levelInfo.current === 1 ? 45 : levelInfo.current === 2 ? 60 : 75)) * 100))}%`,
+                    }}
+                    className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 transition-all duration-300"
                   />
                 </div>
               </div>
@@ -759,6 +821,32 @@ export default function PlayClient({
                 )}
               </div>
 
+              {/* Auto-Aim Optional Toggle Button */}
+              <button
+                onClick={handleToggleAutoAim}
+                className={`flex items-center justify-between w-full rounded-xl border p-2 text-xs font-mono transition ${
+                  autoAim.isScrambled
+                    ? 'border-red-500 bg-red-950/40 text-red-400 animate-pulse'
+                    : autoAim.enabled
+                    ? 'border-cyan-500/40 bg-cyan-950/20 text-cyan-300 hover:border-cyan-400'
+                    : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700'
+                }`}
+              >
+                <span className="flex items-center space-x-1.5">
+                  <Crosshair className={`h-3.5 w-3.5 ${autoAim.isScrambled ? 'text-red-400 animate-spin' : autoAim.enabled ? 'text-cyan-400' : 'text-zinc-500'}`} />
+                  <span>Auto-Aim [T]</span>
+                </span>
+                <span className={`text-[10px] font-black rounded px-1.5 py-0.5 ${
+                  autoAim.isScrambled
+                    ? 'bg-red-500 text-black'
+                    : autoAim.enabled
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                    : 'bg-zinc-800 text-zinc-400'
+                }`}>
+                  {autoAim.isScrambled ? 'JAMMED (EMP)' : autoAim.enabled ? 'ENABLED' : 'MANUAL'}
+                </span>
+              </button>
+
               {/* BGM Audio Toggle */}
               <button
                 onClick={toggleBgm}
@@ -819,6 +907,9 @@ export default function PlayClient({
           abilityCooldown={abilityCooldown}
           abilityReady={abilityReady}
           abilityName={gameConfig.signatureSkill.name}
+          autoAimEnabled={autoAim.enabled}
+          isAimScrambled={autoAim.isScrambled}
+          onToggleAutoAim={handleToggleAutoAim}
         />
       </ArcadeCabinetFrame>
 
