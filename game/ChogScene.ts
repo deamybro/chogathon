@@ -11,6 +11,7 @@ export interface GameCallbacks {
   onBonusSkillsUpdate?: (skills: ActiveBonusSkill[]) => void;
   onBossHpUpdate?: (bossName: string | null, currentHp: number, maxHp: number) => void;
   onComboAlert?: (text: string) => void;
+  onOverclockUpdate?: (level: number, currentExp: number, nextExp: number) => void;
   onGameOver: (results: RunResults) => void;
   onVictory: (results: RunResults) => void;
   onChaosAlert: (message: string) => void;
@@ -29,6 +30,7 @@ interface Projectile {
   maxLife: number;
   hitsLeft: number;
   chain?: boolean;
+  explosive?: boolean;
 }
 
 interface Enemy {
@@ -169,6 +171,14 @@ export class ChogScene extends Phaser.Scene {
   private activeBoss: Enemy | null = null;
   private bossSpawned = false;
 
+  // In-run Overclock Evolution state
+  private overclockLevel = 1;
+  private overclockExp = 0;
+  private nextOverclockExp = 250;
+  private hyperSurgeTriggered = false;
+  private muzzleFlash!: Phaser.GameObjects.Arc;
+  private overclockAura!: Phaser.GameObjects.Arc;
+
   // Pools / Lists
   private projectiles: Projectile[] = [];
   private enemies: Enemy[] = [];
@@ -235,6 +245,10 @@ export class ChogScene extends Phaser.Scene {
     this.vy = 0;
     this.activeBoss = null;
     this.bossSpawned = false;
+    this.overclockLevel = 1;
+    this.overclockExp = 0;
+    this.nextOverclockExp = 250;
+    this.hyperSurgeTriggered = false;
     this.activeBonusSkills.clear();
     this.orbitalOrbs = [];
     this.projectiles = [];
@@ -300,12 +314,91 @@ export class ChogScene extends Phaser.Scene {
       }
     }
 
+    // Ambient Biome Atmospheric FX
+    if (this.configData.biome.type === 'space') {
+      for (let i = 0; i < 35; i++) {
+        const star = this.add.circle(
+          this.rng.nextInt(10, width - 10),
+          this.rng.nextInt(10, height - 10),
+          this.rng.nextInt(1, 2.5),
+          0xffffff,
+          this.rng.next() * 0.7 + 0.2
+        );
+        this.tweens.add({
+          targets: star,
+          alpha: 0.1,
+          duration: 1000 + this.rng.nextInt(500, 1500),
+          yoyo: true,
+          repeat: -1,
+        });
+      }
+    } else if (this.configData.biome.type === 'neon') {
+      for (let i = 0; i < 5; i++) {
+        const line = this.add.rectangle(
+          width / 2,
+          this.rng.nextInt(30, height - 30),
+          width,
+          2,
+          0x06b6d4,
+          0.15
+        );
+        this.tweens.add({
+          targets: line,
+          alpha: 0.03,
+          duration: 800 + i * 200,
+          yoyo: true,
+          repeat: -1,
+        });
+      }
+    } else if (this.configData.biome.type === 'swamp') {
+      for (let i = 0; i < 20; i++) {
+        const spore = this.add.circle(
+          this.rng.nextInt(20, width - 20),
+          this.rng.nextInt(20, height - 20),
+          this.rng.nextInt(2, 4),
+          0x10b981,
+          0.3
+        );
+        this.tweens.add({
+          targets: spore,
+          y: spore.y - 25,
+          alpha: 0.05,
+          duration: 2000 + this.rng.nextInt(500, 1500),
+          yoyo: true,
+          repeat: -1,
+        });
+      }
+    } else if (this.configData.biome.type === 'ice') {
+      for (let i = 0; i < 25; i++) {
+        const flake = this.add.circle(
+          this.rng.nextInt(20, width - 20),
+          this.rng.nextInt(20, height - 20),
+          this.rng.nextInt(1.5, 3),
+          0xe0f2fe,
+          0.4
+        );
+        this.tweens.add({
+          targets: flake,
+          y: flake.y + 30,
+          duration: 1800 + this.rng.nextInt(500, 1500),
+          repeat: -1,
+        });
+      }
+    }
+
     // Player visual representation with styled avatar traits
     this.playerContainer = this.add.container(width / 2, height / 2);
 
     // Shield aura
     this.playerShieldGlow = this.add.circle(0, 0, 32, 0x38bdf8, 0);
     this.playerShieldGlow.setStrokeStyle(3, 0x67e8f9);
+
+    // Overclock Ascension Ring
+    this.overclockAura = this.add.circle(0, 0, 30, 0xfacc15, 0);
+    this.overclockAura.setStrokeStyle(2.5, 0xfde047);
+
+    // Muzzle Flash
+    this.muzzleFlash = this.add.circle(22, 0, 8, 0xffffff, 0);
 
     // Body
     const bodyColor = this.configData.archetype.type === 'suit' ? 0x475569 :
@@ -337,10 +430,12 @@ export class ChogScene extends Phaser.Scene {
 
     this.playerContainer.add([
       this.playerShieldGlow,
+      this.overclockAura,
       bodyShape,
       leftEye,
       rightEye,
       mouthIndicator,
+      this.muzzleFlash,
     ]);
 
     // Orbital orbs container
@@ -500,6 +595,11 @@ export class ChogScene extends Phaser.Scene {
     // Check 30s milestone for Boss Entrance
     if (this.timeRemaining <= 30 && !this.bossSpawned) {
       this.spawnMidBoss();
+    }
+
+    // Check 50s milestone (10 seconds remaining) for Hyper Survival Surge
+    if (this.timeRemaining <= 10 && !this.hyperSurgeTriggered) {
+      this.triggerHyperSurge();
     }
 
     // 2. Ability Cooldown & Active Durations (Throttled callback)
@@ -688,44 +788,6 @@ export class ChogScene extends Phaser.Scene {
     }
   }
 
-  private spawnMidBoss() {
-    this.bossSpawned = true;
-    soundSynth.playBossAlert();
-    this.cameras.main.shake(350, 0.015);
-    this.callbacks.onChaosAlert('WARNING: VOID COLOSSUS BOSS ENTERS!');
-
-    const { width } = this.scale;
-    const container = this.add.container(width / 2, -60);
-
-    // Boss Visual (Imposing multi-layered mechanical titan)
-    const bossCore = this.add.circle(0, 0, 34, 0x7c3aed);
-    bossCore.setStrokeStyle(3, 0xa78bfa);
-    const bossEye = this.add.circle(0, 0, 14, 0xef4444);
-    const bossSpikes = this.add.rectangle(0, 0, 76, 8, 0xef4444);
-    bossSpikes.setRotation(0.78);
-
-    container.add([bossCore, bossEye, bossSpikes]);
-
-    const bossHp = 280 * this.configData.difficulty.difficultyMultiplier;
-    this.activeBoss = {
-      sprite: container,
-      type: 'boss',
-      hp: bossHp,
-      maxHp: bossHp,
-      speed: 70,
-      scoreValue: 2500,
-      slowTimer: 0,
-      frozenTimer: 0,
-      isBoss: true,
-      bossSkillTimer: 0,
-    };
-
-    this.enemies.push(this.activeBoss);
-    if (this.callbacks.onBossHpUpdate) {
-      this.callbacks.onBossHpUpdate('VOID COLOSSUS', bossHp, bossHp);
-    }
-  }
-
   private updateChaos(dt: number) {
     const chaos = this.configData.chaos;
     this.chaosTimer += dt;
@@ -910,9 +972,20 @@ export class ChogScene extends Phaser.Scene {
 
       soundSynth.playLaser(isCrit);
 
-      if (atk.pattern === 'spread') {
-        const spreadAngles = [-0.22, 0, 0.22];
-        spreadAngles.forEach((offset) => {
+      // Muzzle flash animation
+      if (this.muzzleFlash) {
+        this.muzzleFlash.setAlpha(0.9);
+        this.tweens.add({
+          targets: this.muzzleFlash,
+          alpha: 0,
+          duration: 65,
+        });
+      }
+
+      if (atk.pattern === 'spread' || this.overclockLevel >= 2) {
+        const spreadCount = (atk.pattern === 'spread' ? 3 : 2) + (this.overclockLevel >= 4 ? 2 : 0);
+        const offsets = spreadCount === 2 ? [-0.12, 0.12] : spreadCount === 3 ? [-0.22, 0, 0.22] : [-0.35, -0.18, 0, 0.18, 0.35];
+        offsets.forEach((offset) => {
           this.spawnProjectile(fireAngle + offset, damage, isCrit);
         });
       } else {
@@ -925,7 +998,7 @@ export class ChogScene extends Phaser.Scene {
     const atk = this.configData.attack;
     const tgt = this.configData.targeting;
 
-    const speed = atk.projectileSpeed;
+    const speed = atk.projectileSpeed * (this.overclockLevel >= 2 ? 1.2 : 1.0);
     const vx = Math.cos(angle) * speed;
     const vy = Math.sin(angle) * speed;
 
@@ -936,27 +1009,44 @@ export class ChogScene extends Phaser.Scene {
     const bullet = this.add.circle(startX, startY, radius, crit ? 0xfacc15 : atk.bulletColor);
     bullet.setStrokeStyle(1, 0xffffff);
 
+    const isPiercing = this.overclockLevel >= 4 || tgt.piercing;
+    const isExplosive = this.overclockLevel >= 3;
+
     this.projectiles.push({
       sprite: bullet,
       vx,
       vy,
       damage,
-      piercing: tgt.piercing,
+      piercing: isPiercing,
       slowOnHit: tgt.slowOnHit,
       crit,
       life: 0,
       maxLife: 1.4 * tgt.rangeModifier,
-      hitsLeft: tgt.piercing ? 3 : 1,
+      hitsLeft: isPiercing ? 3 : 1,
       chain: this.activeBonusSkills.has('chain_lightning'),
+      explosive: isExplosive,
     });
   }
 
   private updateProjectiles(dt: number) {
+    const atk = this.configData.attack;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life += dt;
       p.sprite.x += p.vx * dt;
       p.sprite.y += p.vy * dt;
+
+      // Projectile trail particles
+      if (Math.random() < 0.3) {
+        const trail = this.add.circle(p.sprite.x, p.sprite.y, p.crit ? 3 : 2, p.crit ? 0xfacc15 : atk.bulletColor, 0.5);
+        this.tweens.add({
+          targets: trail,
+          scale: 0.1,
+          alpha: 0,
+          duration: 140,
+          onComplete: () => trail.destroy(),
+        });
+      }
 
       let hasHit = false;
       for (const enemy of this.enemies) {
@@ -967,6 +1057,29 @@ export class ChogScene extends Phaser.Scene {
           enemy.hp -= p.damage;
           this.showDamageText(enemy.sprite.x, enemy.sprite.y, p.damage, p.crit);
           soundSynth.playHit();
+
+          // Kinetic hit flash on enemy
+          this.tweens.add({
+            targets: enemy.sprite,
+            scale: enemy.isBoss ? 1.08 : 1.25,
+            duration: 45,
+            yoyo: true,
+          });
+
+          // Explosive plasma splash
+          if (p.explosive) {
+            this.spawnParticleRing(enemy.sprite.x, enemy.sprite.y, 0xf97316, 8);
+            this.enemies.forEach((other) => {
+              if (other !== enemy) {
+                const splashDist = Math.hypot(other.sprite.x - enemy.sprite.x, other.sprite.y - enemy.sprite.y);
+                if (splashDist < 70) {
+                  const splashDmg = Math.round(p.damage * 0.45);
+                  other.hp -= splashDmg;
+                  this.showDamageText(other.sprite.x, other.sprite.y, splashDmg, false);
+                }
+              }
+            });
+          }
 
           if (enemy.isBoss && this.callbacks.onBossHpUpdate) {
             this.callbacks.onBossHpUpdate('VOID COLOSSUS', Math.max(0, enemy.hp), enemy.maxHp);
@@ -1126,6 +1239,124 @@ export class ChogScene extends Phaser.Scene {
     }
   }
 
+  private spawnMidBoss() {
+    this.bossSpawned = true;
+    soundSynth.playBossSiren();
+    this.cameras.main.shake(400, 0.02);
+    this.callbacks.onComboAlert?.('⚠️ WARNING: VOID COLOSSUS EMERGES!');
+
+    const { width } = this.scale;
+    const bx = width / 2;
+    const by = 80;
+
+    const bossContainer = this.add.container(bx, by);
+
+    // Glowing purple & red boss body
+    const aura = this.add.circle(0, 0, 48, 0xa855f7, 0.35);
+    const body = this.add.rectangle(0, 0, 56, 56, 0x581c87);
+    body.setStrokeStyle(3, 0xd8b4fe);
+    const eye = this.add.circle(0, 0, 14, 0xef4444);
+    eye.setStrokeStyle(2, 0xffffff);
+
+    bossContainer.add([aura, body, eye]);
+
+    this.tweens.add({
+      targets: aura,
+      scale: 1.3,
+      alpha: 0.15,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+    });
+
+    const bossHp = Math.round(550 * this.configData.difficulty.difficultyMultiplier);
+
+    const bossEnemy: Enemy = {
+      sprite: bossContainer,
+      type: 'boss',
+      hp: bossHp,
+      maxHp: bossHp,
+      speed: 48,
+      scoreValue: 2500,
+      slowTimer: 0,
+      frozenTimer: 0,
+      isBoss: true,
+      bossSkillTimer: 0,
+    };
+
+    this.activeBoss = bossEnemy;
+    this.enemies.push(bossEnemy);
+
+    if (this.callbacks.onBossHpUpdate) {
+      this.callbacks.onBossHpUpdate('VOID COLOSSUS', bossHp, bossHp);
+    }
+  }
+
+  private triggerHyperSurge() {
+    this.hyperSurgeTriggered = true;
+    soundSynth.playBossAlert();
+    this.cameras.main.shake(400, 0.02);
+    this.callbacks.onComboAlert?.('⚠️ HYPER SURGE: FINAL 10 SECONDS!');
+
+    const { width, height } = this.scale;
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const x = width / 2 + Math.cos(angle) * (width * 0.45);
+      const y = height / 2 + Math.sin(angle) * (height * 0.45);
+
+      const container = this.add.container(x, y);
+      const waspBody = this.add.triangle(0, 0, 0, -12, 12, 12, -12, 12, 0xef4444);
+      waspBody.setStrokeStyle(1.5, 0xffffff);
+      container.add(waspBody);
+
+      this.enemies.push({
+        sprite: container,
+        type: 'wasp',
+        hp: 20,
+        maxHp: 20,
+        speed: 160,
+        scoreValue: 400,
+        slowTimer: 0,
+        frozenTimer: 0,
+      });
+
+      this.spawnParticleRing(x, y, 0xef4444, 10);
+    }
+  }
+
+  private levelUpOverclock() {
+    this.overclockLevel++;
+    if (this.overclockLevel === 2) {
+      this.nextOverclockExp = 750;
+      this.callbacks.onComboAlert?.('⚡ OVERCLOCK LVL 2: SPREAD MATRIX!');
+    } else if (this.overclockLevel === 3) {
+      this.nextOverclockExp = 1800;
+      this.callbacks.onComboAlert?.('🔥 OVERCLOCK LVL 3: EXPLOSIVE PLASMA!');
+    } else if (this.overclockLevel >= 4) {
+      this.overclockLevel = 4;
+      this.nextOverclockExp = 999999;
+      this.callbacks.onComboAlert?.('🌟 MAX OVERCLOCK GOD MODE!');
+    }
+
+    soundSynth.playLevelUp();
+    this.cameras.main.shake(250, 0.015);
+    this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0xfacc15, 24);
+
+    if (this.overclockAura) {
+      this.overclockAura.setAlpha(0.7);
+      this.tweens.add({
+        targets: this.overclockAura,
+        scale: 1.35,
+        alpha: 0.3,
+        duration: 500,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+
+    this.callbacks.onOverclockUpdate?.(this.overclockLevel, this.overclockExp, this.nextOverclockExp);
+  }
+
   private triggerBossRadialBarrage(bx: number, by: number) {
     soundSynth.playLaser(true);
     const count = 10;
@@ -1217,6 +1448,15 @@ export class ChogScene extends Phaser.Scene {
         this.score += g.value;
         this.callbacks.onScoreUpdate(this.score);
         this.showScoreText(g.sprite.x, g.sprite.y, g.value, g.value >= 500);
+
+        // Overclock EXP Progression
+        this.overclockExp += g.value;
+        if (this.overclockLevel < 4 && this.overclockExp >= this.nextOverclockExp) {
+          this.levelUpOverclock();
+        } else {
+          this.callbacks.onOverclockUpdate?.(this.overclockLevel, this.overclockExp, this.nextOverclockExp);
+        }
+
         g.sprite.destroy();
         this.gems.splice(i, 1);
       }
@@ -1320,6 +1560,11 @@ export class ChogScene extends Phaser.Scene {
     soundSynth.triggerHaptic(40);
     this.cameras.main.shake(120, 0.01);
 
+    if (this.hp <= this.maxHp * 0.25 && this.hp > 0) {
+      soundSynth.playHeartbeat();
+      this.cameras.main.flash(120, 255, 0, 0);
+    }
+
     if (this.hp <= 0) {
       this.handleGameOver();
     }
@@ -1409,6 +1654,7 @@ export class ChogScene extends Phaser.Scene {
       enemiesDefeated: this.enemiesDefeated,
       bossesDefeated: this.bossesDefeated,
       skillsCollected: this.skillsCollected,
+      overclockLevel: this.overclockLevel,
       victory: false,
       personalBest: 0,
       skullCount: 0,
@@ -1433,6 +1679,7 @@ export class ChogScene extends Phaser.Scene {
       enemiesDefeated: this.enemiesDefeated,
       bossesDefeated: this.bossesDefeated,
       skillsCollected: this.skillsCollected,
+      overclockLevel: this.overclockLevel,
       victory: true,
       personalBest: 0,
       skullCount: 0,

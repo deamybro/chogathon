@@ -76,6 +76,11 @@ export default function PlayClient({
   const [bossInfo, setBossInfo] = useState<{ name: string; current: number; max: number } | null>(null);
   const [bgmActive, setBgmActive] = useState(true);
   const [showDnaModal, setShowDnaModal] = useState(false);
+  const [overclock, setOverclock] = useState<{ level: number; currentExp: number; nextExp: number }>({
+    level: 1,
+    currentExp: 0,
+    nextExp: 250,
+  });
 
   // Input & reactive control triggers
   const [abilityTriggerCount, setAbilityTriggerCount] = useState(0);
@@ -119,6 +124,7 @@ export default function PlayClient({
     setComboAlert(null);
     setBonusSkills([]);
     setBossInfo(null);
+    setOverclock({ level: 1, currentExp: 0, nextExp: 250 });
     setGameKey((prev) => prev + 1);
   };
 
@@ -183,6 +189,9 @@ export default function PlayClient({
       onComboAlert: (text: string) => {
         setComboAlert(text);
         setTimeout(() => setComboAlert(null), 2000);
+      },
+      onOverclockUpdate: (level: number, currentExp: number, nextExp: number) => {
+        setOverclock({ level, currentExp, nextExp });
       },
       onGameOver: (results: RunResults) => {
         const newSkulls = incrementSkullCount(results.tokenId);
@@ -517,6 +526,36 @@ export default function PlayClient({
                 <p className="mt-0.5 font-mono text-2xl font-black text-white">
                   {score.toLocaleString()}
                 </p>
+              </div>
+
+              {/* In-Run Overclock Evolution HUD */}
+              <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-2.5">
+                <div className="flex items-center justify-between font-mono text-xs">
+                  <span className="text-amber-400 uppercase font-black flex items-center space-x-1">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Overclock Tier</span>
+                  </span>
+                  <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-black text-amber-300 border border-amber-500/40">
+                    {overclock.level >= 4 ? 'MAX ASCENSION' : `LVL ${overclock.level}`}
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                  <div
+                    style={{
+                      width: `${overclock.level >= 4 ? 100 : Math.min(100, (overclock.currentExp / overclock.nextExp) * 100)}%`,
+                    }}
+                    className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-300"
+                  />
+                </div>
+                <span className="mt-1 block text-[9px] font-mono text-zinc-400">
+                  {overclock.level === 1
+                    ? 'Loot gems to unlock Spread Matrix'
+                    : overclock.level === 2
+                    ? 'Spread Matrix Active • Next: Explosive Plasma'
+                    : overclock.level === 3
+                    ? 'Explosive Plasma Active • Next: God Mode'
+                    : '🔥 Full Ascended Overclock God Mode'}
+                </span>
               </div>
 
               {/* Inherent Active Ability Cooldown HUD */}

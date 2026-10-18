@@ -240,6 +240,87 @@ class ArcadeSoundSynth {
     } catch {}
   }
 
+  playLevelUp(): void {
+    if (!this.enabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'triangle';
+        const start = now + idx * 0.07;
+        osc.frequency.setValueAtTime(freq, start);
+
+        gain.gain.setValueAtTime(0.28, start);
+        gain.gain.exponentialRampToValueAtTime(0.01, start + 0.18);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + 0.18);
+      });
+    } catch {}
+  }
+
+  playHeartbeat(): void {
+    if (!this.enabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      [0, 0.15].forEach((delay) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(65, now + delay);
+        osc.frequency.exponentialRampToValueAtTime(35, now + delay + 0.12);
+
+        gain.gain.setValueAtTime(0.35, now + delay);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + delay + 0.12);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.12);
+      });
+    } catch {}
+  }
+
+  playBossSiren(): void {
+    if (!this.enabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.linearRampToValueAtTime(640, now + 0.25);
+      osc.frequency.linearRampToValueAtTime(320, now + 0.5);
+
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.55);
+    } catch {}
+  }
+
   playVictory(): void {
     if (!this.enabled) return;
     const ctx = this.getContext();

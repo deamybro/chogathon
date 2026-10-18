@@ -129,6 +129,7 @@ export interface RunResults {
   enemiesDefeated: number;
   bossesDefeated: number;
   skillsCollected: number;
+  overclockLevel?: number;
   victory: boolean;
   personalBest: number;
   skullCount: number;

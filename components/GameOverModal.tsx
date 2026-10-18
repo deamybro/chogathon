@@ -101,15 +101,19 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
             <span className="text-[10px] opacity-80">{results.skullCount} Skulls</span>
           </div>
 
-          {/* Bosses & Skills Row */}
-          <div className="col-span-2 grid grid-cols-2 gap-2 text-center text-xs font-mono">
+          {/* Bosses, Skills & Overclock Row */}
+          <div className="col-span-2 grid grid-cols-3 gap-2 text-center text-xs font-mono">
             <div className="rounded-lg bg-zinc-900/80 p-2 border border-zinc-800">
-              <span className="text-zinc-500 text-[10px] uppercase block">Colossus Bosses Down</span>
+              <span className="text-zinc-500 text-[9px] uppercase block">Bosses Down</span>
               <span className="text-purple-400 font-bold">{results.bossesDefeated || 0}</span>
             </div>
             <div className="rounded-lg bg-zinc-900/80 p-2 border border-zinc-800">
-              <span className="text-zinc-500 text-[10px] uppercase block">Bonus Skills Looted</span>
+              <span className="text-zinc-500 text-[9px] uppercase block">Skills Looted</span>
               <span className="text-cyan-400 font-bold">{results.skillsCollected || 0}</span>
+            </div>
+            <div className="rounded-lg bg-zinc-900/80 p-2 border border-zinc-800">
+              <span className="text-zinc-500 text-[9px] uppercase block">Overclock</span>
+              <span className="text-amber-400 font-bold">LVL {results.overclockLevel || 1}</span>
             </div>
           </div>
         </div>
