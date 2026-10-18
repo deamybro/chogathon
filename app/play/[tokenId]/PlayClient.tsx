@@ -136,8 +136,9 @@ export default function PlayClient({
 
   // Live Game State from Phaser callbacks
   const [hasStarted, setHasStarted] = useState(false);
-  const [hp, setHp] = useState(100);
-  const [maxHp, setMaxHp] = useState(100);
+  const [hp, setHp] = useState(130);
+  const [maxHp, setMaxHp] = useState(130);
+  const [playerShield, setPlayerShield] = useState({ current: 35, max: 35 });
   const [score, setScore] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [abilityCooldown, setAbilityCooldown] = useState(0);
@@ -250,6 +251,7 @@ export default function PlayClient({
     setComboAlert(null);
     setBonusSkills([]);
     setBossInfo(null);
+    setPlayerShield({ current: 35, max: 35 });
     setOverclock({ level: 1, currentExp: 0, nextExp: 250 });
     setGameKey((prev) => prev + 1);
   };
@@ -300,9 +302,10 @@ export default function PlayClient({
   // Callbacks passed to Phaser
   const phaserCallbacks = useMemo(
     () => ({
-      onHpUpdate: (current: number, max: number) => {
+      onHpUpdate: (current: number, max: number, shield = 0, maxShield = 0) => {
         setHp(current);
         setMaxHp(max);
+        setPlayerShield({ current: Math.round(shield), max: Math.round(maxShield) });
       },
       onScoreUpdate: (newScore: number) => {
         setScore(newScore);
@@ -549,24 +552,43 @@ export default function PlayClient({
             {hasStarted && !runResults && (
               <div className="w-full bg-zinc-950/95 border-b border-zinc-800 px-3 py-1.5 z-20">
                 <div className="flex flex-wrap items-center justify-between gap-2 max-w-xl mx-auto">
-                  {/* Vitality Gauge */}
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center space-x-1 text-red-400 font-mono text-[10px] sm:text-xs font-black">
-                      <Heart className="h-3.5 w-3.5 fill-current text-red-500 shrink-0" />
-                      <span>{Math.round(hp)}/{maxHp}</span>
+                  {/* Vitality & Kinetic Shield Gauges */}
+                  <div className="flex items-center space-x-2.5">
+                    {/* Vitality Gauge */}
+                    <div className="flex items-center space-x-1.5">
+                      <div className="flex items-center space-x-1 text-red-400 font-mono text-[10px] sm:text-xs font-black">
+                        <Heart className="h-3.5 w-3.5 fill-current text-red-500 shrink-0" />
+                        <span>{Math.round(hp)}/{maxHp}</span>
+                      </div>
+                      <div className="h-2 w-16 sm:w-20 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
+                        <div
+                          style={{ width: `${hpPercent}%` }}
+                          className={`h-full transition-all duration-150 ${
+                            hpPercent > 50
+                              ? 'bg-gradient-to-r from-emerald-500 to-green-400'
+                              : hpPercent > 25
+                              ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                              : 'bg-gradient-to-r from-red-600 to-red-400 animate-pulse'
+                          }`}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 w-20 sm:w-28 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
-                      <div
-                        style={{ width: `${hpPercent}%` }}
-                        className={`h-full transition-all duration-150 ${
-                          hpPercent > 50
-                            ? 'bg-gradient-to-r from-emerald-500 to-green-400'
-                            : hpPercent > 25
-                            ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
-                            : 'bg-gradient-to-r from-red-600 to-red-400 animate-pulse'
-                        }`}
-                      />
-                    </div>
+
+                    {/* Kinetic Barrier Shield Gauge */}
+                    {playerShield.max > 0 && (
+                      <div className="flex items-center space-x-1.5">
+                        <div className="flex items-center space-x-1 text-cyan-400 font-mono text-[10px] sm:text-xs font-black">
+                          <Shield className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                          <span>{Math.round(playerShield.current)}/{playerShield.max}</span>
+                        </div>
+                        <div className="h-2 w-12 sm:w-16 overflow-hidden rounded-full bg-zinc-900 border border-cyan-800/80">
+                          <div
+                            style={{ width: `${Math.max(0, Math.min(100, (playerShield.current / playerShield.max) * 100))}%` }}
+                            className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 shadow-[0_0_8px_rgba(56,189,248,0.7)] transition-all duration-150"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Ultimate Charge / Ready Trigger */}

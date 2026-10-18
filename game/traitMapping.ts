@@ -246,9 +246,9 @@ export function deriveGameConfig(
     crown: {
       name: 'Aegis of the Crown',
       key: 'crown' as const,
-      description: 'Invulnerable energy barrier for 3.5 seconds.',
+      description: 'Invulnerable barrier for 4s, restores 30 Kinetic Shield, and emits a Holy Aegis Shockwave.',
       cooldownSeconds: 14,
-      durationSeconds: 3.5,
+      durationSeconds: 4.0,
       icon: 'Crown',
     },
     hood: {
@@ -282,25 +282,25 @@ export function deriveGameConfig(
     suit: {
       type: 'suit' as const,
       name: 'Juggernaut Suit',
-      maxHealth: 150, // High HP
+      maxHealth: 180, // High HP & Heavy armor
       moveSpeed: 210, // Slower
     },
     hoodie: {
       type: 'hoodie' as const,
       name: 'Streetwear Operative',
-      maxHealth: 100, // Balanced
+      maxHealth: 130, // Balanced
       moveSpeed: 240,
     },
     naked: {
       type: 'naked' as const,
       name: 'Aerodynamic Striker',
-      maxHealth: 70, // Fragile
+      maxHealth: 95, // Agile & resilient
       moveSpeed: 290, // Fast
     },
     default: {
       type: 'default' as const,
       name: 'Standard Combat Chog',
-      maxHealth: 100,
+      maxHealth: 130,
       moveSpeed: 240,
     },
   };

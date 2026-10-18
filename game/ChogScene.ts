@@ -4,7 +4,7 @@ import { SeededRandom } from './seededRandom';
 import { soundSynth } from './soundEffects';
 
 export interface GameCallbacks {
-  onHpUpdate: (hp: number, maxHp: number) => void;
+  onHpUpdate: (hp: number, maxHp: number, shield?: number, maxShield?: number) => void;
   onScoreUpdate: (score: number) => void;
   onTimeUpdate: (secondsRemaining: number) => void;
   onAbilityState: (cooldownSeconds: number, isReady: boolean) => void;
@@ -198,6 +198,14 @@ export class ChogScene extends Phaser.Scene {
   private controlsInversionTimer = 0;
   private chaosTimer = 0;
 
+  // Player Kinetic Barrier Shield & Damage Mitigation
+  private playerShield = 35;
+  private playerMaxShield = 35;
+  private shieldRechargeDelayTimer = 0;
+  private playerInvulnerableTimer = 0;
+  private surgeAnnounced = false;
+  private titanPulseTimer = 0;
+
   // Active Bonus Skills state
   private activeBonusSkills: Map<BonusSkillType, { remaining: number; maxDuration: number }> = new Map();
   private orbitalOrbs: OrbitalOrb[] = [];
@@ -330,6 +338,13 @@ export class ChogScene extends Phaser.Scene {
 
     this.maxHp = this.configData.archetype.maxHealth;
     this.hp = this.maxHp;
+    this.playerMaxShield = this.configData.archetype.type === 'suit' ? 50 :
+                           this.configData.archetype.type === 'naked' ? 25 : 35;
+    this.playerShield = this.playerMaxShield;
+    this.shieldRechargeDelayTimer = 0;
+    this.playerInvulnerableTimer = 0;
+    this.surgeAnnounced = false;
+    this.titanPulseTimer = 0;
     this.score = 0;
     this.enemiesDefeated = 0;
     this.bossesDefeated = 0;
@@ -641,7 +656,7 @@ export class ChogScene extends Phaser.Scene {
     });
 
     // Notify React of initial state
-    this.callbacks.onHpUpdate(this.hp, this.maxHp);
+    this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
     this.callbacks.onScoreUpdate(this.score);
     this.callbacks.onTimeUpdate(this.levelTimeRemaining);
     this.callbacks.onLevelUpdate?.(
@@ -725,11 +740,27 @@ export class ChogScene extends Phaser.Scene {
     this.abilityTimer = ab.cooldownSeconds;
 
     if (ab.key === 'crown') {
-      // Royal Shield: invulnerable for 3.5s
+      // Royal Aegis Barrier: invulnerable for 4s + restores 30 Shield + Holy Nova
       this.isShielded = true;
       this.abilityActiveDuration = ab.durationSeconds;
-      this.playerShieldGlow.setAlpha(0.75);
-      this.callbacks.onChaosAlert('AEGIS SHIELD ACTIVATED!');
+      this.playerShield = Math.min(this.playerMaxShield + 30, this.playerShield + 30);
+      this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
+      this.playerShieldGlow.setAlpha(0.9);
+      this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0xfacc15, 30);
+      this.callbacks.onChaosAlert('AEGIS SHIELD ENGAGED (+30 SHIELD)!');
+
+      // Holy Aegis Nova
+      this.enemies.forEach((enemy) => {
+        const dx = enemy.sprite.x - this.playerContainer.x;
+        const dy = enemy.sprite.y - this.playerContainer.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 200) {
+          enemy.hp -= 45;
+          enemy.sprite.x += (dx / dist) * 95;
+          enemy.sprite.y += (dy / dist) * 95;
+          this.showDamageText(enemy.sprite.x, enemy.sprite.y, 45, false, '#facc15');
+        }
+      });
     } else if (ab.key === 'hood') {
       // Shadow Dash: huge speed burst
       this.isShielded = true;
@@ -755,11 +786,12 @@ export class ChogScene extends Phaser.Scene {
       });
       this.callbacks.onChaosAlert('TITAN SHOCKWAVE!');
     } else {
-      // Emergency Stim: heal
-      this.hp = Math.min(this.maxHp, this.hp + 35);
-      this.callbacks.onHpUpdate(this.hp, this.maxHp);
+      // Emergency Stim: heal + restore shield
+      this.hp = Math.min(this.maxHp, this.hp + 45);
+      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 20);
+      this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
       this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x22c55e);
-      this.callbacks.onChaosAlert('NANO REPAIR +35 HP!');
+      this.callbacks.onChaosAlert('NANO REPAIR: +45 HP & +20 SHIELD!');
     }
 
     this.lastReportedAbilityCooldown = Math.ceil(this.abilityTimer);
@@ -873,12 +905,15 @@ export class ChogScene extends Phaser.Scene {
       }
       this.callbacks.onScoreUpdate(this.score);
     } else {
-      // Titan Overload: Invulnerability + health regen
-      this.callbacks.onChaosAlert('⚡ TITAN OVERLOAD OVERDRIVE');
+      // Titan Fortress Overload: Colossal Aegis + 100 Overcharged Shield + Massive Pulse Discharges
+      this.callbacks.onChaosAlert('⚡ TITAN FORTRESS OVERLOAD ENGAGED!');
       this.isShielded = true;
       this.abilityActiveDuration = this.ultimateMaxDuration;
-      this.hp = Math.min(this.maxHp, this.hp + 50);
-      this.callbacks.onHpUpdate(this.hp, this.maxHp);
+      this.hp = Math.min(this.maxHp, this.hp + 65);
+      this.playerShield = this.playerMaxShield + 100;
+      this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
+      this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 45);
+      this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0xfacc15, 30);
     }
 
     this.emitEssenceUpdate();
@@ -899,6 +934,51 @@ export class ChogScene extends Phaser.Scene {
         this.callbacks.onChaosAlert('TARGETING RE-CALIBRATED');
         this.callbacks.onAutoAimStatus?.(this.autoAimEnabled, this.isAimScrambled);
       }
+    }
+
+    // Player i-frames tick & visual flashing
+    if (this.playerInvulnerableTimer > 0) {
+      this.playerInvulnerableTimer -= dt;
+      if (this.playerContainer) {
+        this.playerContainer.setAlpha(Math.floor(time / 70) % 2 === 0 ? 0.35 : 0.95);
+      }
+      if (this.playerInvulnerableTimer <= 0) {
+        this.playerInvulnerableTimer = 0;
+        if (this.playerContainer) {
+          this.playerContainer.setAlpha(1.0);
+        }
+      }
+    }
+
+    // Shield passive regeneration (after 3.2s without taking damage)
+    if (this.shieldRechargeDelayTimer > 0) {
+      this.shieldRechargeDelayTimer -= dt;
+    } else if (this.playerShield < this.playerMaxShield && this.hp > 0) {
+      const prevShield = Math.floor(this.playerShield);
+      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 14 * dt);
+      if (Math.floor(this.playerShield) !== prevShield) {
+        this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
+      }
+    }
+
+    // Player shield glow visual feedback
+    if (this.playerShieldGlow) {
+      if (this.isShielded) {
+        this.playerShieldGlow.setAlpha(0.85);
+      } else if (this.playerShield > 0) {
+        this.playerShieldGlow.setAlpha(0.25 * (this.playerShield / this.playerMaxShield));
+      } else {
+        this.playerShieldGlow.setAlpha(0);
+      }
+    }
+
+    // Hyper Surge announcement (final 10 seconds of sector)
+    if (this.levelTimeRemaining <= 10 && !this.surgeAnnounced) {
+      this.surgeAnnounced = true;
+      soundSynth.playBossAlert();
+      this.cameras.main.shake(350, 0.022);
+      this.callbacks.onChaosAlert('⚡ SURGE DETECTED! 10S ENEMY OVERDRIVE (+30% SPEED)!');
+      this.callbacks.onComboAlert?.('⚠️ MASSIVE SURGE HORDE INCOMING!');
     }
 
     // 1. Level time countdown (Throttled callback)
@@ -1028,6 +1108,37 @@ export class ChogScene extends Phaser.Scene {
             this.showDamageText(enemy.sprite.x, enemy.sprite.y, Math.round(120 * dt), false);
           }
         });
+      } else {
+        // Titan Fortress Overload: active electric shockwave discharge pulses & hazard neutralization
+        this.titanPulseTimer = (this.titanPulseTimer || 0) + dt;
+        if (this.titanPulseTimer >= 0.75) {
+          this.titanPulseTimer = 0;
+          soundSynth.playHit();
+          this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 28);
+          this.enemies.forEach((enemy) => {
+            const dist = Math.hypot(enemy.sprite.x - this.playerContainer.x, enemy.sprite.y - this.playerContainer.y);
+            if (dist < 220) {
+              const pulseDmg = 90;
+              enemy.hp -= pulseDmg;
+              this.showDamageText(enemy.sprite.x, enemy.sprite.y, pulseDmg, true, '#38bdf8');
+              const pushDx = enemy.sprite.x - this.playerContainer.x;
+              const pushDy = enemy.sprite.y - this.playerContainer.y;
+              if (dist > 5) {
+                enemy.sprite.x += (pushDx / dist) * 75;
+                enemy.sprite.y += (pushDy / dist) * 75;
+              }
+            }
+          });
+          // Dissolve hazard projectiles in blast radius
+          for (let hi = this.hazards.length - 1; hi >= 0; hi--) {
+            const h = this.hazards[hi];
+            const hd = Math.hypot(h.x - this.playerContainer.x, h.y - this.playerContainer.y);
+            if (hd < 220) {
+              h.circle.destroy();
+              this.hazards.splice(hi, 1);
+            }
+          }
+        }
       }
 
       if (this.ultimateDurationTimer <= 0) {
@@ -1067,29 +1178,43 @@ export class ChogScene extends Phaser.Scene {
     // 11. Particle Updates
     this.updateParticles(dt);
 
-    // 12. Overhead Player Mini HUD (Vitality & Mana/Essence)
+    // 12. Overhead Player Mini HUD (Shield, Vitality & Mana/Essence)
     if (this.playerContainer && this.playerContainer.active && this.isGameStarted && !this.isFinished) {
       this.playerHudGraphics.clear();
       const hx = this.playerContainer.x - 22;
-      const hy = this.playerContainer.y - 36;
+      const hy = this.playerContainer.y - 38;
+
+      const hasShield = this.playerShield > 0;
+      const pillHeight = hasShield ? 14 : 11;
 
       // Dark background pill
       this.playerHudGraphics.fillStyle(0x020617, 0.85);
-      this.playerHudGraphics.fillRoundedRect(hx - 2, hy - 2, 48, 11, 2);
+      this.playerHudGraphics.fillRoundedRect(hx - 2, hy - 2, 48, pillHeight, 2);
       this.playerHudGraphics.lineStyle(1, 0x334155, 0.7);
-      this.playerHudGraphics.strokeRoundedRect(hx - 2, hy - 2, 48, 11, 2);
+      this.playerHudGraphics.strokeRoundedRect(hx - 2, hy - 2, 48, pillHeight, 2);
+
+      let currentY = hy;
+
+      // Kinetic Shield bar (cyan)
+      if (hasShield) {
+        const shieldRatio = Phaser.Math.Clamp(this.playerShield / this.playerMaxShield, 0, 1);
+        this.playerHudGraphics.fillStyle(0x38bdf8, 0.95);
+        this.playerHudGraphics.fillRoundedRect(hx, currentY, 44 * shieldRatio, 2, 1);
+        currentY += 3;
+      }
 
       // Vitality / HP bar (44px wide, 3px high)
       const hpRatio = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
       const hpColor = hpRatio > 0.5 ? 0x22c55e : hpRatio > 0.25 ? 0xf59e0b : 0xef4444;
       this.playerHudGraphics.fillStyle(hpColor, 0.95);
-      this.playerHudGraphics.fillRoundedRect(hx, hy, 44 * hpRatio, 3, 1);
+      this.playerHudGraphics.fillRoundedRect(hx, currentY, 44 * hpRatio, 3, 1);
+      currentY += 4;
 
       // Mana / Ultimate Essence bar (44px wide, 2.5px high)
       const manaRatio = Phaser.Math.Clamp(this.essence / this.maxEssence, 0, 1);
       const manaColor = this.isUltimateActive ? 0xf97316 : this.isUltimateReady ? 0xfacc15 : 0x06b6d4;
       this.playerHudGraphics.fillStyle(manaColor, 0.95);
-      this.playerHudGraphics.fillRoundedRect(hx, hy + 4, 44 * manaRatio, 2.5, 1);
+      this.playerHudGraphics.fillRoundedRect(hx, currentY, 44 * manaRatio, 2.5, 1);
     } else if (this.playerHudGraphics) {
       this.playerHudGraphics.clear();
     }
@@ -1126,11 +1251,23 @@ export class ChogScene extends Phaser.Scene {
         const globalY = this.playerContainer.y + orb.sprite.y;
         this.enemies.forEach((enemy) => {
           const dist = Math.hypot(enemy.sprite.x - globalX, enemy.sprite.y - globalY);
-          if (dist < 26) {
-            enemy.hp -= 28 * dt * 5;
+          if (dist < 28) {
+            enemy.hp -= 40 * dt * 5;
             soundSynth.playHit();
           }
         });
+
+        // Intercept & destroy enemy projectiles on contact with orbital barrier
+        for (let hi = this.hazards.length - 1; hi >= 0; hi--) {
+          const h = this.hazards[hi];
+          const hDist = Math.hypot(h.x - globalX, h.y - globalY);
+          if (hDist < 26) {
+            h.circle.destroy();
+            this.hazards.splice(hi, 1);
+            this.spawnParticleRing(globalX, globalY, 0x38bdf8, 8);
+            soundSynth.playHit();
+          }
+        }
       });
     }
 
@@ -1654,17 +1791,24 @@ export class ChogScene extends Phaser.Scene {
     const now = this.time.now;
     const elapsed = this.getLevelDuration(this.currentLevel) - this.levelTimeRemaining;
 
-    // Faster spawn intervals and higher enemy density in higher sectors
-    const densityMult = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.35 : 1.6;
+    const isHyperRush = this.levelTimeRemaining <= 10;
+    // Faster spawn intervals and higher enemy density in higher sectors, surging heavily during the last 10s
+    const baseDensity = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.35 : 1.6;
+    const densityMult = baseDensity * (isHyperRush ? 2.2 : 1.0);
+    const minInterval = isHyperRush ? 0.12 : 0.25;
     const spawnInterval = Phaser.Math.Clamp(
       ((1.4 - (elapsed / 60) * 1.0) / (this.configData.dailyDream.spawnRateMultiplier * densityMult)),
-      0.25,
+      minInterval,
       1.8
     ) * 1000;
 
     if (now >= this.nextSpawnTime) {
       this.nextSpawnTime = now + spawnInterval;
       this.spawnWaveEnemy(elapsed);
+      if (isHyperRush) {
+        // Dense horde surge: additional wave spawn during the final 10s
+        this.spawnWaveEnemy(elapsed);
+      }
     }
 
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -1819,7 +1963,7 @@ export class ChogScene extends Phaser.Scene {
       // Handle slow timer and progressive level speed scaling (balanced and fair)
       const levelSpeedMult = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.15 : 1.30;
       const isHyperRush = this.levelTimeRemaining <= 10;
-      const rushSpeedMult = isHyperRush ? 1.15 : 1.0;
+      const rushSpeedMult = isHyperRush ? 1.30 : 1.0; // 30% faster during 10-second hyper rush
       let speed = enemy.speed * this.configData.difficulty.difficultyMultiplier * levelSpeedMult * rushSpeedMult;
 
       if (enemy.slowTimer > 0) {
@@ -1841,8 +1985,13 @@ export class ChogScene extends Phaser.Scene {
       const contactRadius = enemy.isBoss ? 44 : enemy.isSubBoss ? 32 : 22;
       if (dist < contactRadius) {
         if (!this.isShielded) {
-          const dmg = enemy.isBoss ? 30 : enemy.isSubBoss ? 20 : 12;
+          const dmg = enemy.isBoss ? 26 : enemy.isSubBoss ? 18 : 10;
           this.takeDamage(dmg);
+        } else if (this.isUltimateActive && this.configData.tokenId !== 969) {
+          // Titan Overload reflective damage to attacking hostiles
+          enemy.hp -= 140 * dt * 5;
+          soundSynth.playHit();
+          this.showDamageText(enemy.sprite.x, enemy.sprite.y, 140, true, '#38bdf8');
         }
         this.vx += (dx / dist) * 120;
         this.vy += (dy / dist) * 120;
@@ -1892,7 +2041,10 @@ export class ChogScene extends Phaser.Scene {
     } else {
       this.hp = Math.min(this.maxHp, this.hp + 35);
     }
-    this.callbacks.onHpUpdate(this.hp, this.maxHp);
+    this.surgeAnnounced = false;
+    this.playerMaxShield += this.currentLevel === 2 ? 15 : 20;
+    this.playerShield = this.playerMaxShield;
+    this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
 
     soundSynth.playLevelUp();
     soundSynth.triggerHaptic(100);
@@ -2799,20 +2951,20 @@ export class ChogScene extends Phaser.Scene {
 
     if (type === 'wasp') {
       hp = 12;
-      speed = 145 * levelSpeedFactor;
+      speed = 105;
       scoreVal = 150;
       const waspBody = this.add.triangle(0, 0, 0, -12, 12, 12, -12, 12, 0xf59e0b);
       container.add(waspBody);
     } else if (type === 'brute') {
       hp = 65;
-      speed = 60 * levelSpeedFactor;
+      speed = 50;
       scoreVal = 300;
       const bruteBody = this.add.rectangle(0, 0, 28, 28, 0xef4444);
       bruteBody.setStrokeStyle(2, 0xffffff);
       container.add(bruteBody);
     } else {
       hp = 18;
-      speed = 95 * levelSpeedFactor;
+      speed = 75;
       scoreVal = 100;
       const droneBody = this.add.circle(0, 0, 12, 0x8b5cf6);
       droneBody.setStrokeStyle(1.5, 0xc084fc);
@@ -2832,13 +2984,44 @@ export class ChogScene extends Phaser.Scene {
   }
 
   private takeDamage(amount: number) {
-    if (this.isShielded || this.isFinished) return;
+    if (this.isShielded || this.playerInvulnerableTimer > 0 || this.isFinished) return;
 
-    this.hp = Math.max(0, this.hp - amount);
-    this.callbacks.onHpUpdate(this.hp, this.maxHp);
-    soundSynth.playHit();
-    soundSynth.triggerHaptic(40);
-    this.cameras.main.shake(120, 0.01);
+    // Trigger invulnerability frames (0.55s) to prevent multi-hit frame wipes
+    this.playerInvulnerableTimer = 0.55;
+    this.shieldRechargeDelayTimer = 3.5;
+
+    let remainingDamage = amount;
+
+    // 1. Kinetic Barrier Shield absorbs damage first
+    if (this.playerShield > 0) {
+      if (this.playerShield >= remainingDamage) {
+        this.playerShield -= remainingDamage;
+        this.showDamageText(this.playerContainer.x, this.playerContainer.y, `SHIELD -${Math.round(remainingDamage)}`, false, '#38bdf8');
+        this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 12);
+        soundSynth.playHit();
+        soundSynth.triggerHaptic(30);
+        this.cameras.main.shake(70, 0.007);
+        remainingDamage = 0;
+      } else {
+        remainingDamage -= this.playerShield;
+        this.playerShield = 0;
+        this.showDamageText(this.playerContainer.x, this.playerContainer.y, 'SHIELD BROKEN!', true, '#38bdf8');
+        this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 22);
+        soundSynth.playExplosion(false);
+        this.cameras.main.shake(140, 0.015);
+      }
+    }
+
+    // 2. Excess damage penetrates to HP
+    if (remainingDamage > 0) {
+      this.hp = Math.max(0, this.hp - remainingDamage);
+      this.showDamageText(this.playerContainer.x, this.playerContainer.y, `-${Math.round(remainingDamage)}`, false, '#ef4444');
+      soundSynth.playHit();
+      soundSynth.triggerHaptic(45);
+      this.cameras.main.shake(120, 0.012);
+    }
+
+    this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
 
     if (this.hp <= this.maxHp * 0.25 && this.hp > 0) {
       soundSynth.playHeartbeat();
