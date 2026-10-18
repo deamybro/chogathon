@@ -267,6 +267,7 @@ export class ChogScene extends Phaser.Scene {
   ];
   private subBoss1Spawned = false;
   private subBoss2Spawned = false;
+  private subBoss3Spawned = false;
   private mainBossSpawned = false;
   private bossSupernovaTimer = 0;
 
@@ -338,8 +339,8 @@ export class ChogScene extends Phaser.Scene {
 
     this.maxHp = this.configData.archetype.maxHealth;
     this.hp = this.maxHp;
-    this.playerMaxShield = this.configData.archetype.type === 'suit' ? 50 :
-                           this.configData.archetype.type === 'naked' ? 25 : 35;
+    this.playerMaxShield = this.configData.archetype.type === 'suit' ? 30 :
+                           this.configData.archetype.type === 'naked' ? 15 : 20;
     this.playerShield = this.playerMaxShield;
     this.shieldRechargeDelayTimer = 0;
     this.playerInvulnerableTimer = 0;
@@ -355,6 +356,7 @@ export class ChogScene extends Phaser.Scene {
     this.totalSurvivedSeconds = 0;
     this.subBoss1Spawned = false;
     this.subBoss2Spawned = false;
+    this.subBoss3Spawned = false;
     this.mainBossSpawned = false;
     this.bossSupernovaTimer = 0;
     this.autoAimEnabled = true;
@@ -950,12 +952,12 @@ export class ChogScene extends Phaser.Scene {
       }
     }
 
-    // Shield passive regeneration (after 3.2s without taking damage)
+    // Shield passive regeneration (after 4.5s without taking damage)
     if (this.shieldRechargeDelayTimer > 0) {
       this.shieldRechargeDelayTimer -= dt;
     } else if (this.playerShield < this.playerMaxShield && this.hp > 0) {
       const prevShield = Math.floor(this.playerShield);
-      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 14 * dt);
+      this.playerShield = Math.min(this.playerMaxShield, this.playerShield + 8 * dt);
       if (Math.floor(this.playerShield) !== prevShield) {
         this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
       }
@@ -1013,35 +1015,49 @@ export class ChogScene extends Phaser.Scene {
     }
 
     // Milestones per level:
-    // Level 1: Sector Alpha (60s) -> Boss at 30s
+    // Level 1: Sector Alpha (60s) -> Sub-Boss 1 (Voidstalker) at 46s, Main Boss at 28s
     if (this.currentLevel === 1) {
-      if (this.levelTimeRemaining <= 30 && !this.mainBossSpawned) {
+      if (this.levelTimeRemaining <= 46 && !this.subBoss1Spawned) {
+        this.subBoss1Spawned = true;
+        this.spawnSubBossStalker();
+      }
+      if (this.levelTimeRemaining <= 28 && !this.mainBossSpawned) {
         this.mainBossSpawned = true;
         this.spawnMainBoss(1);
       }
     }
-    // Level 2: Sector Beta (90s) -> Sub-Boss 1 (Voidstalker) at 60s, Main Boss at 35s
+    // Level 2: Sector Beta (90s) -> Sub-Boss 1 at 70s, Sub-Boss 2 at 48s, Main Boss at 28s
     else if (this.currentLevel === 2) {
-      if (this.levelTimeRemaining <= 60 && !this.subBoss1Spawned) {
+      if (this.levelTimeRemaining <= 70 && !this.subBoss1Spawned) {
         this.subBoss1Spawned = true;
         this.spawnSubBossStalker();
       }
-      if (this.levelTimeRemaining <= 35 && !this.mainBossSpawned) {
+      if (this.levelTimeRemaining <= 48 && !this.subBoss2Spawned) {
+        this.subBoss2Spawned = true;
+        this.spawnSubBossSiege();
+      }
+      if (this.levelTimeRemaining <= 28 && !this.mainBossSpawned) {
         this.mainBossSpawned = true;
         this.spawnMainBoss(2);
       }
     }
-    // Level 3: Sector Omega Core (120s) -> Sub-Boss 1 at 90s, Sub-Boss 2 (Siegebeast) at 60s, Supreme Boss at 35s
+    // Level 3: Sector Omega Core (120s) -> Sub-Boss 1 at 98s, Sub-Boss 2 at 72s, Twin Sub-Boss Ambush at 48s, Supreme Boss at 28s
     else if (this.currentLevel === 3) {
-      if (this.levelTimeRemaining <= 90 && !this.subBoss1Spawned) {
+      if (this.levelTimeRemaining <= 98 && !this.subBoss1Spawned) {
         this.subBoss1Spawned = true;
         this.spawnSubBossStalker();
       }
-      if (this.levelTimeRemaining <= 60 && !this.subBoss2Spawned) {
+      if (this.levelTimeRemaining <= 72 && !this.subBoss2Spawned) {
         this.subBoss2Spawned = true;
         this.spawnSubBossSiege();
       }
-      if (this.levelTimeRemaining <= 35 && !this.mainBossSpawned) {
+      if (this.levelTimeRemaining <= 48 && !this.subBoss3Spawned) {
+        this.subBoss3Spawned = true;
+        this.callbacks.onComboAlert?.('⚠️ DUAL SUB-BOSS INTERCEPTION DETECTED!');
+        this.spawnSubBossStalker();
+        this.spawnSubBossSiege();
+      }
+      if (this.levelTimeRemaining <= 28 && !this.mainBossSpawned) {
         this.mainBossSpawned = true;
         this.spawnMainBoss(3);
       }
@@ -1985,7 +2001,15 @@ export class ChogScene extends Phaser.Scene {
       const contactRadius = enemy.isBoss ? 44 : enemy.isSubBoss ? 32 : 22;
       if (dist < contactRadius) {
         if (!this.isShielded) {
-          const dmg = enemy.isBoss ? 26 : enemy.isSubBoss ? 18 : 10;
+          const dmg = enemy.isBoss
+            ? 36
+            : enemy.isSubBoss
+            ? 26
+            : enemy.type === 'brute'
+            ? 22
+            : enemy.type === 'wasp'
+            ? 15
+            : 12;
           this.takeDamage(dmg);
         } else if (this.isUltimateActive && this.configData.tokenId !== 969) {
           // Titan Overload reflective damage to attacking hostiles
@@ -2014,6 +2038,7 @@ export class ChogScene extends Phaser.Scene {
     // Reset boss / sub-boss states for the new sector
     this.subBoss1Spawned = false;
     this.subBoss2Spawned = false;
+    this.subBoss3Spawned = false;
     this.mainBossSpawned = false;
     this.bossSpawned = false;
     this.activeBoss = null;
@@ -2025,24 +2050,24 @@ export class ChogScene extends Phaser.Scene {
     this.score += bonusPoints;
     this.callbacks.onScoreUpdate(this.score);
 
-    // Progressive Player Stat Upgrades per sector
+    // Progressive Player Stat Upgrades per sector (challenging but fair)
     if (this.currentLevel === 2) {
-      this.maxHp += 25;
-      this.hp = Math.min(this.maxHp, this.hp + 50);
+      this.maxHp += 20;
+      this.hp = Math.min(this.maxHp, this.hp + 35);
       this.progressionMoveSpeedMod *= 1.15;
       this.progressionFireRateMod *= 0.85;
-      this.callbacks.onComboAlert?.('🚀 SECTOR 2 REINFORCEMENTS: +25 HP, +15% SPEED, +15% FIRE RATE!');
+      this.callbacks.onComboAlert?.('🚀 SECTOR 2 REINFORCEMENTS: +20 HP, +10 SHIELD, +15% SPEED!');
     } else if (this.currentLevel === 3) {
-      this.maxHp += 35;
-      this.hp = Math.min(this.maxHp, this.hp + 70);
+      this.maxHp += 25;
+      this.hp = Math.min(this.maxHp, this.hp + 45);
       this.progressionDamageMod *= 1.30;
       this.progressionMoveSpeedMod *= 1.15;
-      this.callbacks.onComboAlert?.('🔥 OMEGA OVERDRIVE: +35 HP, +30% DAMAGE & +15% SPEED!');
+      this.callbacks.onComboAlert?.('🔥 OMEGA OVERDRIVE: +25 HP, +15 SHIELD, +30% DAMAGE!');
     } else {
-      this.hp = Math.min(this.maxHp, this.hp + 35);
+      this.hp = Math.min(this.maxHp, this.hp + 25);
     }
     this.surgeAnnounced = false;
-    this.playerMaxShield += this.currentLevel === 2 ? 15 : 20;
+    this.playerMaxShield += this.currentLevel === 2 ? 10 : 15;
     this.playerShield = this.playerMaxShield;
     this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);
 
@@ -2117,8 +2142,9 @@ export class ChogScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    const hp = Math.round(400 * this.configData.difficulty.difficultyMultiplier * (this.currentLevel === 3 ? 1.25 : 1.0));
-    const shield = Math.round(220 * this.configData.difficulty.difficultyMultiplier);
+    const levelMod = this.currentLevel === 3 ? 1.3 : this.currentLevel === 2 ? 1.15 : 1.0;
+    const hp = Math.round(750 * this.configData.difficulty.difficultyMultiplier * levelMod);
+    const shield = Math.round(350 * this.configData.difficulty.difficultyMultiplier * levelMod);
 
     const enemy: Enemy = {
       sprite: container,
@@ -2182,8 +2208,9 @@ export class ChogScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    const hp = Math.round(600 * this.configData.difficulty.difficultyMultiplier);
-    const shield = Math.round(300 * this.configData.difficulty.difficultyMultiplier);
+    const levelMod = this.currentLevel === 3 ? 1.3 : 1.0;
+    const hp = Math.round(1050 * this.configData.difficulty.difficultyMultiplier * levelMod);
+    const shield = Math.round(450 * this.configData.difficulty.difficultyMultiplier * levelMod);
 
     const enemy: Enemy = {
       sprite: container,
@@ -2263,8 +2290,8 @@ export class ChogScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    const baseHp = isOmega ? 2000 : isBeta ? 1350 : 800;
-    const baseShield = isOmega ? 900 : isBeta ? 600 : 350;
+    const baseHp = isOmega ? 3400 : isBeta ? 2300 : 1350;
+    const baseShield = isOmega ? 1500 : isBeta ? 1000 : 600;
 
     const bossHp = Math.round(baseHp * this.configData.difficulty.difficultyMultiplier);
     const bossShield = Math.round(baseShield * this.configData.difficulty.difficultyMultiplier);
@@ -2986,39 +3013,50 @@ export class ChogScene extends Phaser.Scene {
   private takeDamage(amount: number) {
     if (this.isShielded || this.playerInvulnerableTimer > 0 || this.isFinished) return;
 
-    // Trigger invulnerability frames (0.55s) to prevent multi-hit frame wipes
-    this.playerInvulnerableTimer = 0.55;
-    this.shieldRechargeDelayTimer = 3.5;
+    // Trigger invulnerability frames (0.50s) to prevent multi-hit frame wipes
+    this.playerInvulnerableTimer = 0.50;
+    this.shieldRechargeDelayTimer = 4.5; // Longer delay before shield begins recharging
 
-    let remainingDamage = amount;
+    let shieldDamage = 0;
+    let hpDamage = 0;
 
-    // 1. Kinetic Barrier Shield absorbs damage first
     if (this.playerShield > 0) {
-      if (this.playerShield >= remainingDamage) {
-        this.playerShield -= remainingDamage;
-        this.showDamageText(this.playerContainer.x, this.playerContainer.y, `SHIELD -${Math.round(remainingDamage)}`, false, '#38bdf8');
-        this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 12);
-        soundSynth.playHit();
-        soundSynth.triggerHaptic(30);
-        this.cameras.main.shake(70, 0.007);
-        remainingDamage = 0;
+      // Kinetic shield absorbs 65% of the blow, while 35% penetrates directly into vitality
+      const potentialShieldAbsorb = amount * 0.65;
+      const directPenetration = amount * 0.35;
+
+      if (this.playerShield >= potentialShieldAbsorb) {
+        this.playerShield -= potentialShieldAbsorb;
+        shieldDamage = potentialShieldAbsorb;
+        hpDamage = directPenetration;
+        this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 8);
       } else {
-        remainingDamage -= this.playerShield;
+        // Shield cannot absorb full 65%; breaks and leftover bleeds to HP
+        const leftover = potentialShieldAbsorb - this.playerShield;
+        shieldDamage = this.playerShield;
         this.playerShield = 0;
+        hpDamage = directPenetration + leftover;
+
         this.showDamageText(this.playerContainer.x, this.playerContainer.y, 'SHIELD BROKEN!', true, '#38bdf8');
-        this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 22);
+        this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x38bdf8, 20);
         soundSynth.playExplosion(false);
-        this.cameras.main.shake(140, 0.015);
+        this.cameras.main.shake(160, 0.015);
       }
+    } else {
+      // Zero shield: full damage impacts vitality
+      hpDamage = amount;
     }
 
-    // 2. Excess damage penetrates to HP
-    if (remainingDamage > 0) {
-      this.hp = Math.max(0, this.hp - remainingDamage);
-      this.showDamageText(this.playerContainer.x, this.playerContainer.y, `-${Math.round(remainingDamage)}`, false, '#ef4444');
+    if (shieldDamage > 0) {
+      this.showDamageText(this.playerContainer.x - 12, this.playerContainer.y - 12, `SHIELD -${Math.round(shieldDamage)}`, false, '#38bdf8');
+    }
+
+    if (hpDamage > 0) {
+      this.hp = Math.max(0, this.hp - hpDamage);
+      this.showDamageText(this.playerContainer.x + 12, this.playerContainer.y - 12, `-${Math.round(hpDamage)}`, false, '#ef4444');
       soundSynth.playHit();
       soundSynth.triggerHaptic(45);
-      this.cameras.main.shake(120, 0.012);
+      this.cameras.main.shake(110 + Math.min(80, hpDamage * 3), 0.012 + Math.min(0.015, hpDamage * 0.0005));
     }
 
     this.callbacks.onHpUpdate(this.hp, this.maxHp, this.playerShield, this.playerMaxShield);

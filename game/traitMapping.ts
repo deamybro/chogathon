@@ -282,25 +282,25 @@ export function deriveGameConfig(
     suit: {
       type: 'suit' as const,
       name: 'Juggernaut Suit',
-      maxHealth: 180, // High HP & Heavy armor
+      maxHealth: 135, // Armored but vulnerable to heavy blows
       moveSpeed: 210, // Slower
     },
     hoodie: {
       type: 'hoodie' as const,
       name: 'Streetwear Operative',
-      maxHealth: 130, // Balanced
+      maxHealth: 100, // Balanced arcade standard
       moveSpeed: 240,
     },
     naked: {
       type: 'naked' as const,
       name: 'Aerodynamic Striker',
-      maxHealth: 95, // Agile & resilient
+      maxHealth: 75, // High agility, low margin for error
       moveSpeed: 290, // Fast
     },
     default: {
       type: 'default' as const,
       name: 'Standard Combat Chog',
-      maxHealth: 130,
+      maxHealth: 100,
       moveSpeed: 240,
     },
   };

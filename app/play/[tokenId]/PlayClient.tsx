@@ -136,9 +136,9 @@ export default function PlayClient({
 
   // Live Game State from Phaser callbacks
   const [hasStarted, setHasStarted] = useState(false);
-  const [hp, setHp] = useState(130);
-  const [maxHp, setMaxHp] = useState(130);
-  const [playerShield, setPlayerShield] = useState({ current: 35, max: 35 });
+  const [hp, setHp] = useState(100);
+  const [maxHp, setMaxHp] = useState(100);
+  const [playerShield, setPlayerShield] = useState({ current: 20, max: 20 });
   const [score, setScore] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [abilityCooldown, setAbilityCooldown] = useState(0);
@@ -251,7 +251,7 @@ export default function PlayClient({
     setComboAlert(null);
     setBonusSkills([]);
     setBossInfo(null);
-    setPlayerShield({ current: 35, max: 35 });
+    setPlayerShield({ current: 20, max: 20 });
     setOverclock({ level: 1, currentExp: 0, nextExp: 250 });
     setGameKey((prev) => prev + 1);
   };
