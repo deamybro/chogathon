@@ -18,7 +18,7 @@ import ArcadeCabinetFrame from '@/components/ArcadeCabinetFrame';
 import TraitBadge from '@/components/TraitBadge';
 import GameOverModal from '@/components/GameOverModal';
 import MobileControls from '@/components/MobileControls';
-import type { PhaserGameHandle } from '@/components/PhaserGame';
+import type { PhaserGameHandle, StarterAugmentType } from '@/components/PhaserGame';
 import {
   Play,
   RotateCcw,
@@ -44,7 +44,53 @@ import {
   Magnet,
   Crosshair,
   Layers,
+  Flame,
 } from 'lucide-react';
+
+export const STARTER_AUGMENTS: Record<
+  StarterAugmentType,
+  {
+    name: string;
+    shortLabel: string;
+    description: string;
+    statBadge: string;
+    icon: string;
+    color: string;
+    borderActive: string;
+    bgBadge: string;
+  }
+> = {
+  speed: {
+    name: 'HYPER THRUSTERS',
+    shortLabel: '+30% SPEED',
+    description: 'Boosts baseline movement speed by +30% for agile evasion and rapid positioning.',
+    statBadge: '+30% SPEED',
+    icon: 'FastForward',
+    color: '#06b6d4',
+    borderActive: 'border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.5)]',
+    bgBadge: 'bg-cyan-500 text-black',
+  },
+  attack_speed: {
+    name: 'OVERCLOCK CAPACITOR',
+    shortLabel: '+35% FIRE RATE',
+    description: 'Accelerates twin plasma cycling by +35% for rapid continuous bullet streams.',
+    statBadge: '+35% FIRE RATE',
+    icon: 'Flame',
+    color: '#eab308',
+    borderActive: 'border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.5)]',
+    bgBadge: 'bg-amber-500 text-black',
+  },
+  damage: {
+    name: 'PLASMA AMPLIFIER',
+    shortLabel: '+40% DMG • +10% CRIT',
+    description: 'Overcharges plasma bolts: +40% attack damage and +10% bonus critical strike rate.',
+    statBadge: '+40% DMG • +10% CRIT',
+    icon: 'Bomb',
+    color: '#ef4444',
+    borderActive: 'border-red-400 shadow-[0_0_20px_rgba(239,68,68,0.5)]',
+    bgBadge: 'bg-red-500 text-white',
+  },
+};
 
 function renderPowerupIcon(iconName: string, className = 'h-3.5 w-3.5') {
   switch (iconName) {
@@ -171,13 +217,17 @@ export default function PlayClient({
     return deriveGameConfig(initialChog, dailyDream);
   }, [initialChog, dailyDream]);
 
+  // Starter Augment Spec state (chosen before run starts)
+  const [selectedStarterAugment, setSelectedStarterAugment] = useState<StarterAugmentType>('attack_speed');
+
   // Start run
-  const handleStartRun = () => {
+  const handleStartRun = useCallback((aug?: StarterAugmentType) => {
+    const augmentToUse = aug || selectedStarterAugment;
     setHasStarted(true);
     if (gameHandleRef.current) {
-      gameHandleRef.current.startRun();
+      gameHandleRef.current.startRun(augmentToUse);
     }
-  };
+  }, [selectedStarterAugment]);
 
   // Restart run
   const handleRestart = () => {
@@ -590,48 +640,177 @@ export default function PlayClient({
                 config={gameConfig}
                 callbacks={phaserCallbacks}
                 isStarted={hasStarted}
+                starterAugment={selectedStarterAugment}
                 triggerAbilityCount={abilityTriggerCount}
                 touchVector={touchVector}
               />
             </div>
 
+            {/* IN-GAME FLOATING COMBAT HEADS-UP HUD (Vitality & Ultimate Mana) */}
+            {hasStarted && !runResults && (
+              <div className="pointer-events-none absolute bottom-3 left-3 right-3 sm:left-6 sm:right-6 z-30 flex flex-col items-center">
+                {/* Ultimate Ready Alert Banner */}
+                {essence.isReady && !essence.isActive && (
+                  <button
+                    onClick={handleTriggerUltimate}
+                    className="pointer-events-auto mb-1.5 flex items-center space-x-1.5 rounded-full border border-amber-400 bg-amber-950/90 px-3.5 py-1 text-[11px] font-mono font-black text-amber-300 shadow-[0_0_25px_rgba(245,158,11,0.9)] animate-bounce cursor-pointer hover:bg-amber-900 transition"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 fill-current text-amber-400" />
+                    <span>⚡ ULTIMATE READY! TAP / PRESS [F / SPACE]</span>
+                  </button>
+                )}
+                {essence.isActive && (
+                  <div className="mb-1.5 flex items-center space-x-1.5 rounded-full border border-amber-400 bg-black/90 px-3 py-0.5 text-[10px] font-mono font-black text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.8)] animate-pulse">
+                    <Flame className="h-3 w-3 text-amber-400" />
+                    <span>BURNING ULTIMATE: {gameConfig.signatureSkill.name.toUpperCase()}</span>
+                  </div>
+                )}
+
+                {/* Floating Combat Dashboard */}
+                <div className="w-full max-w-md rounded-2xl border border-zinc-700/80 bg-zinc-950/90 p-2 sm:p-2.5 backdrop-blur-md shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* Vitality (HP) Gauge */}
+                    <div>
+                      <div className="flex items-center justify-between font-mono text-[10px] sm:text-[11px] font-black">
+                        <span className="flex items-center space-x-1 text-red-400">
+                          <Heart className="h-3 w-3 fill-current text-red-500" />
+                          <span>VITALITY</span>
+                        </span>
+                        <span className="text-white">
+                          {Math.round(hp)} / {maxHp}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
+                        <div
+                          style={{ width: `${hpPercent}%` }}
+                          className={`h-full transition-all duration-150 ${
+                            hpPercent > 50
+                              ? 'bg-gradient-to-r from-emerald-500 to-green-400'
+                              : hpPercent > 25
+                              ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                              : 'bg-gradient-to-r from-red-600 to-red-400 animate-pulse'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Mana / Ultimate Essence Gauge */}
+                    <div>
+                      <div className="flex items-center justify-between font-mono text-[10px] sm:text-[11px] font-black">
+                        <span className="flex items-center space-x-1 text-amber-400">
+                          <Star className={`h-3 w-3 ${essence.isReady ? 'fill-current text-amber-400' : 'text-zinc-500'}`} />
+                          <span>ULT MANA</span>
+                        </span>
+                        <span className={essence.isReady ? 'text-amber-300 font-black animate-pulse' : 'text-zinc-400'}>
+                          {essence.isActive ? 'BURNING' : essence.isReady ? '100% READY' : `${essence.current}%`}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
+                        <div
+                          style={{ width: `${essence.isActive ? 100 : essence.current}%` }}
+                          className={`h-full transition-all duration-150 ${
+                            essence.isActive
+                              ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 animate-pulse'
+                              : essence.isReady
+                              ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'
+                              : 'bg-gradient-to-r from-cyan-500 to-blue-500'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Micro subline: Hero Skill & Starter Perk */}
+                  <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-zinc-400 border-t border-zinc-800/80 pt-1">
+                    <div className="flex items-center space-x-1 text-emerald-400">
+                      <Zap className="h-2.5 w-2.5 shrink-0" />
+                      <span>HERO SKILL: {abilityReady ? 'READY [SPACE]' : `${abilityCooldown}s`}</span>
+                    </div>
+                    {selectedStarterAugment && (
+                      <div className="flex items-center space-x-1 text-amber-300 font-bold">
+                        <span>PERK:</span>
+                        <span>{STARTER_AUGMENTS[selectedStarterAugment].statBadge}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Pre-Run Start Overlay */}
             {!hasStarted && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/85 p-6 backdrop-blur-sm">
-                <div className="text-center max-w-sm">
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-4 sm:p-6 backdrop-blur-sm overflow-y-auto">
+                <div className="text-center max-w-md w-full">
                   <div className="inline-flex items-center space-x-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/50 px-3 py-1 font-mono text-[11px] font-bold text-emerald-400">
                     <Sparkles className="h-3.5 w-3.5" />
                     <span>CARTRIDGE READY</span>
                   </div>
 
-                  <h3 className="mt-3 font-mono text-2xl font-black text-white">
+                  <h3 className="mt-2 font-mono text-2xl font-black text-white">
                     {initialChog.name}
                   </h3>
-                  <p className="mt-1 font-mono text-xs text-zinc-400">
-                    Survive 3 escalating sectors (Alpha • Beta • Omega). Conquer Sub-Bosses & Cheat Skills!
+                  <p className="mt-0.5 font-mono text-xs text-zinc-400">
+                    Choose your starter augment before entering Sector Alpha.
                   </p>
 
+                  {/* Starter Augment Selector */}
+                  <div className="mt-4 text-left">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center space-x-1">
+                        <Sparkles className="h-3 w-3" />
+                        <span>SELECT STARTER AUGMENT (CHOOSE 1)</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-500">1 PER RUN</span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {(Object.keys(STARTER_AUGMENTS) as StarterAugmentType[]).map((key) => {
+                        const aug = STARTER_AUGMENTS[key];
+                        const isSelected = selectedStarterAugment === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedStarterAugment(key)}
+                            className={`flex flex-col justify-between rounded-xl border-2 p-2.5 text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? `${aug.borderActive} bg-zinc-900 shadow-[0_0_20px_rgba(255,255,255,0.1)] scale-[1.02]`
+                                : 'border-zinc-800 bg-zinc-950/80 hover:border-zinc-700 opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className={`rounded px-1.5 py-0.5 text-[8px] font-mono font-black uppercase ${aug.bgBadge}`}>
+                                  {aug.statBadge}
+                                </span>
+                                {isSelected && (
+                                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-black">
+                                    <Check className="h-3 w-3" />
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="mt-1.5 font-mono text-xs font-black text-white leading-tight">{aug.name}</h4>
+                              <p className="mt-1 text-[10px] text-zinc-300 font-sans leading-tight">{aug.description}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <button
-                    onClick={handleStartRun}
-                    className="mt-6 flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3.5 px-6 font-mono text-sm font-black text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] transition hover:bg-emerald-400 active:scale-95"
+                    onClick={() => handleStartRun()}
+                    className="mt-5 flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3.5 px-6 font-mono text-sm font-black text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
                   >
                     <Play className="h-5 w-5 fill-current" />
-                    <span>START RUN (3 SECTORS)</span>
+                    <span>LAUNCH RUN ({STARTER_AUGMENTS[selectedStarterAugment].statBadge})</span>
                   </button>
 
                   {/* Controls hint */}
-                  <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 text-[11px] font-mono text-zinc-400 text-left space-y-1">
+                  <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2 text-[10px] font-mono text-zinc-400 text-left space-y-0.5">
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Movement:</span>
-                      <span className="text-zinc-200">WASD / Arrow Keys</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Targeting:</span>
-                      <span className="text-cyan-300">[T] Toggle Auto / Manual Aim</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Aim & Fire:</span>
-                      <span className="text-zinc-200">Mouse Aim (Twin Plasma Recoil)</span>
+                      <span className="text-zinc-500">Move / Aim:</span>
+                      <span className="text-zinc-200">WASD / Arrow Keys • Mouse Aim</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Hero Ability:</span>
@@ -639,11 +818,11 @@ export default function PlayClient({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Avatar Ultimate:</span>
-                      <span className="text-amber-400">Spacebar / [F] Key (100% Charge)</span>
+                      <span className="text-amber-400">[F] / Spacebar at 100% Charge</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Hotkeys:</span>
-                      <span className="text-zinc-400">[P] Pause • [R] Restart</span>
+                      <span className="text-zinc-500">Targeting:</span>
+                      <span className="text-cyan-300">[T] Toggle Auto / Manual</span>
                     </div>
                   </div>
                 </div>
@@ -820,6 +999,25 @@ export default function PlayClient({
                 </div>
                 <p className="mt-1 font-mono text-xs font-bold text-zinc-200">
                   {gameConfig.ability.name}
+                </p>
+              </div>
+
+              {/* Active Starter Augment Card */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5">
+                <div className="flex items-center justify-between font-mono text-xs">
+                  <span className="text-zinc-500 uppercase font-bold flex items-center space-x-1">
+                    <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Starter Augment</span>
+                  </span>
+                  <span className={`rounded px-1.5 py-0.5 text-[9px] font-mono font-black uppercase ${STARTER_AUGMENTS[selectedStarterAugment].bgBadge}`}>
+                    {STARTER_AUGMENTS[selectedStarterAugment].statBadge}
+                  </span>
+                </div>
+                <p className="mt-1 font-mono text-xs font-bold text-white">
+                  {STARTER_AUGMENTS[selectedStarterAugment].name}
+                </p>
+                <p className="mt-0.5 text-[9px] text-zinc-400 leading-tight font-sans">
+                  {STARTER_AUGMENTS[selectedStarterAugment].description}
                 </p>
               </div>
 

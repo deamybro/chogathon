@@ -217,6 +217,12 @@ export class ChogScene extends Phaser.Scene {
   private lastReportedUltimateReady = false;
   private lastReportedUltimateActive = false;
 
+  // Starter Augment Spec state ('speed' | 'attack_speed' | 'damage')
+  public starterPerk: 'speed' | 'attack_speed' | 'damage' | null = null;
+
+  // Overhead Player Mini HUD
+  private playerHudGraphics!: Phaser.GameObjects.Graphics;
+
   // Redesigned Twin Cannon Barrels state
   private fireBarrelToggle = false;
   private barrelLeft!: Phaser.GameObjects.Rectangle;
@@ -358,6 +364,7 @@ export class ChogScene extends Phaser.Scene {
     this.isUltimateActive = false;
     this.ultimateDurationTimer = 0;
     this.fireBarrelToggle = false;
+    this.starterPerk = null;
     this.activeBonusSkills.clear();
     this.orbitalOrbs = [];
     this.projectiles = [];
@@ -568,6 +575,10 @@ export class ChogScene extends Phaser.Scene {
     // Ultimate Beam Graphics layer
     this.ultimateBeamGraphics = this.add.graphics();
 
+    // Overhead Player Mini HUD graphics layer
+    this.playerHudGraphics = this.add.graphics();
+    this.playerHudGraphics.setDepth(20);
+
     // Setup input keys
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys();
@@ -582,6 +593,10 @@ export class ChogScene extends Phaser.Scene {
       this.keyR = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
 
       this.keySpace.on('down', () => {
+        if (!this.isGameStarted) {
+          this.startRun();
+          return;
+        }
         if (this.isUltimateReady && !this.isUltimateActive) {
           this.triggerUltimate();
         } else {
@@ -590,7 +605,9 @@ export class ChogScene extends Phaser.Scene {
       });
 
       this.keyF.on('down', () => {
-        this.triggerUltimate();
+        if (this.isGameStarted) {
+          this.triggerUltimate();
+        }
       });
 
       this.keyT.on('down', () => {
@@ -614,17 +631,6 @@ export class ChogScene extends Phaser.Scene {
         this.isTouchAiming = true;
       }
     });
-
-    // Auto-start run on any user interaction
-    this.input.on('pointerdown', () => {
-      this.startRun();
-    });
-
-    if (this.input.keyboard) {
-      this.input.keyboard.on('keydown', () => {
-        this.startRun();
-      });
-    }
 
     // Notify React of initial state
     this.callbacks.onHpUpdate(this.hp, this.maxHp);
@@ -663,11 +669,27 @@ export class ChogScene extends Phaser.Scene {
     }
   }
 
-  public startRun(): void {
+  public startRun(starterPerk?: 'speed' | 'attack_speed' | 'damage'): void {
     if (this.isGameStarted) return;
+    if (starterPerk) {
+      this.starterPerk = starterPerk;
+    } else if (!this.starterPerk) {
+      this.starterPerk = 'attack_speed';
+    }
     this.isGameStarted = true;
     this.lastFireTime = this.time ? this.time.now : 0;
     soundSynth.startBgm();
+
+    const perkNames: Record<string, string> = {
+      speed: '⚡ HYPER THRUSTERS (+30% SPEED)',
+      attack_speed: '🔥 OVERCLOCK CAPACITOR (+35% FIRE RATE)',
+      damage: '💥 PLASMA AMPLIFIER (+40% DMG & +10% CRIT)',
+    };
+    if (this.starterPerk && perkNames[this.starterPerk]) {
+      this.callbacks.onComboAlert?.(perkNames[this.starterPerk]);
+      soundSynth.playLevelUp();
+    }
+
     if (this.callbacks?.onGameStart) {
       this.callbacks.onGameStart();
     }
@@ -1036,6 +1058,33 @@ export class ChogScene extends Phaser.Scene {
 
     // 11. Particle Updates
     this.updateParticles(dt);
+
+    // 12. Overhead Player Mini HUD (Vitality & Mana/Essence)
+    if (this.playerContainer && this.playerContainer.active && this.isGameStarted && !this.isFinished) {
+      this.playerHudGraphics.clear();
+      const hx = this.playerContainer.x - 22;
+      const hy = this.playerContainer.y - 36;
+
+      // Dark background pill
+      this.playerHudGraphics.fillStyle(0x020617, 0.85);
+      this.playerHudGraphics.fillRoundedRect(hx - 2, hy - 2, 48, 11, 2);
+      this.playerHudGraphics.lineStyle(1, 0x334155, 0.7);
+      this.playerHudGraphics.strokeRoundedRect(hx - 2, hy - 2, 48, 11, 2);
+
+      // Vitality / HP bar (44px wide, 3px high)
+      const hpRatio = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
+      const hpColor = hpRatio > 0.5 ? 0x22c55e : hpRatio > 0.25 ? 0xf59e0b : 0xef4444;
+      this.playerHudGraphics.fillStyle(hpColor, 0.95);
+      this.playerHudGraphics.fillRoundedRect(hx, hy, 44 * hpRatio, 3, 1);
+
+      // Mana / Ultimate Essence bar (44px wide, 2.5px high)
+      const manaRatio = Phaser.Math.Clamp(this.essence / this.maxEssence, 0, 1);
+      const manaColor = this.isUltimateActive ? 0xf97316 : this.isUltimateReady ? 0xfacc15 : 0x06b6d4;
+      this.playerHudGraphics.fillStyle(manaColor, 0.95);
+      this.playerHudGraphics.fillRoundedRect(hx, hy + 4, 44 * manaRatio, 2.5, 1);
+    } else if (this.playerHudGraphics) {
+      this.playerHudGraphics.clear();
+    }
   }
 
   private updateBonusSkills(dt: number) {
@@ -1323,7 +1372,8 @@ export class ChogScene extends Phaser.Scene {
     }
 
     const speedWarpBonus = this.activeBonusSkills.has('speed_warp') ? 1.7 : 1.0;
-    const baseSpeed = this.configData.archetype.moveSpeed * this.configData.biome.speedModifier * speedWarpBonus;
+    const starterSpeedBonus = this.starterPerk === 'speed' ? 1.30 : 1.0;
+    const baseSpeed = this.configData.archetype.moveSpeed * this.configData.biome.speedModifier * speedWarpBonus * starterSpeedBonus;
     const accel = 1800;
     this.vx += inputX * accel * dt;
     this.vy += inputY * accel * dt;
@@ -1379,7 +1429,8 @@ export class ChogScene extends Phaser.Scene {
     const atk = this.configData.attack;
     const hyperFireMod = this.activeBonusSkills.has('hyper_firerate') ? 0.45 : 1.0;
     const ultimateFireMod = this.isUltimateActive ? 0.65 : 1.0;
-    const effectiveRate = atk.fireRateMs * hyperFireMod * ultimateFireMod;
+    const starterRateMod = this.starterPerk === 'attack_speed' ? 0.65 : 1.0;
+    const effectiveRate = atk.fireRateMs * hyperFireMod * ultimateFireMod * starterRateMod;
 
     if (time - this.lastFireTime >= effectiveRate) {
       this.lastFireTime = time;
@@ -1404,8 +1455,10 @@ export class ChogScene extends Phaser.Scene {
         }
       }
 
-      const isCrit = Math.random() < this.configData.targeting.critChance;
-      const damage = isCrit ? atk.damage * 2 : atk.damage;
+      const starterCritBonus = this.starterPerk === 'damage' ? 0.10 : 0;
+      const isCrit = Math.random() < (this.configData.targeting.critChance + starterCritBonus);
+      const starterDmgMod = this.starterPerk === 'damage' ? 1.40 : 1.0;
+      const damage = Math.round((isCrit ? atk.damage * 2 : atk.damage) * starterDmgMod);
 
       soundSynth.playLaser(isCrit);
 
@@ -2897,6 +2950,9 @@ export class ChogScene extends Phaser.Scene {
 
   private handleGameOver() {
     this.isFinished = true;
+    if (this.playerHudGraphics) {
+      this.playerHudGraphics.clear();
+    }
     soundSynth.stopBgm();
     soundSynth.playGameOver();
     soundSynth.triggerHaptic(80);
@@ -2924,6 +2980,9 @@ export class ChogScene extends Phaser.Scene {
 
   private handleVictory() {
     this.isFinished = true;
+    if (this.playerHudGraphics) {
+      this.playerHudGraphics.clear();
+    }
     soundSynth.stopBgm();
     soundSynth.playVictory();
     soundSynth.triggerHaptic(100);

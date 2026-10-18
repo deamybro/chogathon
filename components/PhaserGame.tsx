@@ -6,8 +6,10 @@ import { GameConfig } from '@/types/chog';
 import { GameCallbacks, ChogScene } from '@/game/ChogScene';
 import { createPhaserGame } from '@/game/gameConfig';
 
+export type StarterAugmentType = 'speed' | 'attack_speed' | 'damage';
+
 export interface PhaserGameHandle {
-  startRun: () => void;
+  startRun: (starterAugment?: StarterAugmentType) => void;
   triggerAbility: () => void;
   triggerUltimate: () => void;
   setTouchMovement: (x: number, y: number) => void;
@@ -18,21 +20,22 @@ export interface PhaserGameProps {
   config: GameConfig;
   callbacks: GameCallbacks;
   isStarted?: boolean;
+  starterAugment?: StarterAugmentType;
   triggerAbilityCount?: number;
   touchVector?: { x: number; y: number };
 }
 
 const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
-  ({ config, callbacks, isStarted = false, triggerAbilityCount = 0, touchVector }, ref) => {
+  ({ config, callbacks, isStarted = false, starterAugment, triggerAbilityCount = 0, touchVector }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const gameRef = useRef<Phaser.Game | null>(null);
 
     useImperativeHandle(ref, () => ({
-      startRun: () => {
+      startRun: (aug?: StarterAugmentType) => {
         if (gameRef.current) {
           const scene = gameRef.current.scene.getScene('ChogScene') as ChogScene;
           if (scene) {
-            scene.startRun();
+            scene.startRun(aug || starterAugment);
           }
         }
       },
@@ -91,10 +94,10 @@ const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
       if (isStarted && gameRef.current) {
         const scene = gameRef.current.scene.getScene('ChogScene') as ChogScene;
         if (scene) {
-          scene.startRun();
+          scene.startRun(starterAugment);
         }
       }
-    }, [isStarted]);
+    }, [isStarted, starterAugment]);
 
     // Reactively trigger ability when count increments
     useEffect(() => {
