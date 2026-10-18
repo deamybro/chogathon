@@ -325,7 +325,7 @@ export default function PlayClient({
       },
       onPowerupPicked: (name: string, description: string, color: string, icon: string) => {
         setPowerupToast({ name, description, color, icon });
-        setTimeout(() => setPowerupToast(null), 2800);
+        setTimeout(() => setPowerupToast(null), 1400);
       },
       onGameStart: () => {
         setHasStarted(true);
@@ -544,198 +544,176 @@ export default function PlayClient({
           </div>
 
           {/* CENTER: PHASER CANVAS (col-span-6) */}
-          <div className="order-1 lg:order-2 relative lg:col-span-6 flex flex-col items-center justify-center bg-black min-h-[380px] sm:min-h-[420px]">
-            {/* Boss Health & Barrier Shield Bar Overlay */}
-            {bossInfo && (
-              <div className="absolute top-3 left-3 right-3 sm:left-4 sm:right-4 z-30 rounded-xl border-2 border-purple-500 bg-black/95 p-2 sm:p-2.5 backdrop-blur-md shadow-[0_0_25px_rgba(168,85,247,0.7)] animate-in fade-in">
-                <div className="flex items-center justify-between font-mono text-[10px] sm:text-[11px] font-black">
-                  <span className="flex items-center space-x-1.5 sm:space-x-2 text-red-400 truncate max-w-[55%] sm:max-w-none">
-                    <span className="h-2 w-2 rounded-full bg-red-500 animate-ping shrink-0" />
-                    <span className="truncate">⚠️ BOSS: {bossInfo.name}</span>
-                  </span>
-                  <div className="flex items-center space-x-2 text-[9px] sm:text-[10px]">
-                    {bossInfo.shield !== undefined && bossInfo.maxShield && bossInfo.shield > 0 && (
-                      <span className="text-cyan-300 font-bold flex items-center space-x-1">
-                        <Shield className="h-3 w-3 inline text-cyan-400" />
-                        <span>{Math.round(bossInfo.shield)} SHIELD</span>
+          <div className="order-1 lg:order-2 relative lg:col-span-6 flex flex-col bg-black">
+            {/* TOP DOCKED COMBAT DASHBOARD (Always visible during gameplay, zero canvas overlap!) */}
+            {hasStarted && !runResults && (
+              <div className="w-full bg-zinc-950/95 border-b border-zinc-800 px-3 py-1.5 z-20">
+                <div className="flex flex-wrap items-center justify-between gap-2 max-w-xl mx-auto">
+                  {/* Vitality Gauge */}
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1 text-red-400 font-mono text-[10px] sm:text-xs font-black">
+                      <Heart className="h-3.5 w-3.5 fill-current text-red-500 shrink-0" />
+                      <span>{Math.round(hp)}/{maxHp}</span>
+                    </div>
+                    <div className="h-2 w-20 sm:w-28 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
+                      <div
+                        style={{ width: `${hpPercent}%` }}
+                        className={`h-full transition-all duration-150 ${
+                          hpPercent > 50
+                            ? 'bg-gradient-to-r from-emerald-500 to-green-400'
+                            : hpPercent > 25
+                            ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                            : 'bg-gradient-to-r from-red-600 to-red-400 animate-pulse'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Ultimate Charge / Ready Trigger */}
+                  <div>
+                    {essence.isReady && !essence.isActive ? (
+                      <button
+                        type="button"
+                        onClick={handleTriggerUltimate}
+                        className="flex items-center space-x-1.5 rounded-full border border-amber-400 bg-amber-500/20 px-3 py-0.5 font-mono text-[10px] sm:text-xs font-black text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] animate-pulse hover:bg-amber-500/30 transition cursor-pointer"
+                      >
+                        <Sparkles className="h-3 w-3 fill-current text-amber-400" />
+                        <span>ULTIMATE READY [F/SPACE]</span>
+                      </button>
+                    ) : essence.isActive ? (
+                      <div className="flex items-center space-x-1.5 rounded-full border border-amber-400 bg-black/90 px-2.5 py-0.5 font-mono text-[10px] font-black text-amber-300 animate-pulse">
+                        <Flame className="h-3 w-3 text-amber-400" />
+                        <span>BURNING ULTIMATE</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1 text-cyan-400 font-mono text-[10px] sm:text-xs font-black">
+                          <Star className="h-3 w-3 text-cyan-400 shrink-0" />
+                          <span>ULT {essence.current}%</span>
+                        </div>
+                        <div className="h-2 w-16 sm:w-20 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
+                          <div
+                            style={{ width: `${essence.current}%` }}
+                            className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-150"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sector Timer & Starter Perk */}
+                  <div className="flex items-center space-x-2 font-mono text-[10px] sm:text-xs">
+                    <span className="text-zinc-500">S{levelInfo.current}:</span>
+                    <span className={`font-black ${timeRemaining <= 10 ? 'text-red-400 animate-pulse' : 'text-purple-300'}`}>
+                      {timeRemaining}s
+                    </span>
+                    {selectedStarterAugment && (
+                      <span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${STARTER_AUGMENTS[selectedStarterAugment].bgBadge}`}>
+                        {STARTER_AUGMENTS[selectedStarterAugment].shortLabel}
                       </span>
                     )}
-                    <span className="text-purple-300 font-bold">
-                      {Math.round(bossInfo.current)} / {bossInfo.max} HP
-                    </span>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Kinetic Barrier Shield Bar */}
-                {bossInfo.shield !== undefined && bossInfo.maxShield && bossInfo.shield > 0 && (
-                  <div className="mt-1 h-1.5 sm:h-2 w-full overflow-hidden rounded-full bg-zinc-900 border border-cyan-500/50">
+            <div className="relative flex flex-col items-center justify-center bg-black min-h-[380px] sm:min-h-[420px]">
+              {/* Boss Health & Barrier Shield Bar Overlay */}
+              {bossInfo && (
+                <div className="absolute top-2 left-3 right-3 sm:left-4 sm:right-4 z-30 rounded-xl border-2 border-purple-500 bg-black/95 p-2 sm:p-2.5 backdrop-blur-md shadow-[0_0_25px_rgba(168,85,247,0.7)] animate-in fade-in">
+                  <div className="flex items-center justify-between font-mono text-[10px] sm:text-[11px] font-black">
+                    <span className="flex items-center space-x-1.5 sm:space-x-2 text-red-400 truncate max-w-[55%] sm:max-w-none">
+                      <span className="h-2 w-2 rounded-full bg-red-500 animate-ping shrink-0" />
+                      <span className="truncate">⚠️ BOSS: {bossInfo.name}</span>
+                    </span>
+                    <div className="flex items-center space-x-2 text-[9px] sm:text-[10px]">
+                      {bossInfo.shield !== undefined && bossInfo.maxShield && bossInfo.shield > 0 && (
+                        <span className="text-cyan-300 font-bold flex items-center space-x-1">
+                          <Shield className="h-3 w-3 inline text-cyan-400" />
+                          <span>{Math.round(bossInfo.shield)} SHIELD</span>
+                        </span>
+                      )}
+                      <span className="text-purple-300 font-bold">
+                        {Math.round(bossInfo.current)} / {bossInfo.max} HP
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Kinetic Barrier Shield Bar */}
+                  {bossInfo.shield !== undefined && bossInfo.maxShield && bossInfo.shield > 0 && (
+                    <div className="mt-1 h-1.5 sm:h-2 w-full overflow-hidden rounded-full bg-zinc-900 border border-cyan-500/50">
+                      <div
+                        style={{ width: `${Math.max(0, Math.min(100, (bossInfo.shield / bossInfo.maxShield) * 100))}%` }}
+                        className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 shadow-[0_0_10px_rgba(56,189,248,0.8)] transition-all duration-150"
+                      />
+                    </div>
+                  )}
+
+                  {/* HP Core Bar */}
+                  <div className="mt-1 h-2 sm:h-2.5 w-full overflow-hidden rounded-full bg-zinc-900 border border-purple-500/40">
                     <div
-                      style={{ width: `${Math.max(0, Math.min(100, (bossInfo.shield / bossInfo.maxShield) * 100))}%` }}
-                      className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 shadow-[0_0_10px_rgba(56,189,248,0.8)] transition-all duration-150"
+                      style={{ width: `${Math.max(0, (bossInfo.current / bossInfo.max) * 100)}%` }}
+                      className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 transition-all duration-150"
                     />
                   </div>
-                )}
-
-                {/* HP Core Bar */}
-                <div className="mt-1 h-2 sm:h-2.5 w-full overflow-hidden rounded-full bg-zinc-900 border border-purple-500/40">
-                  <div
-                    style={{ width: `${Math.max(0, (bossInfo.current / bossInfo.max) * 100)}%` }}
-                    className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 transition-all duration-150"
-                  />
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Targeting Scrambler EMP Glitch Warning Banner */}
-            {autoAim.isScrambled && (
-              <div className="absolute top-14 z-30 flex items-center space-x-2 rounded-xl border-2 border-red-500 bg-black/95 px-4 py-2 font-mono text-xs font-black text-red-400 shadow-[0_0_25px_rgba(239,68,68,0.8)] animate-pulse">
-                <AlertTriangle className="h-4 w-4 text-red-500 animate-spin" />
-                <span>⚠️ EMP INTERFERENCE: TARGETING JAMMED! MANUAL AIM ACTIVE!</span>
-              </div>
-            )}
+              {/* Targeting Scrambler EMP Glitch Warning Banner */}
+              {autoAim.isScrambled && (
+                <div className="absolute top-12 z-30 flex items-center space-x-2 rounded-xl border-2 border-red-500 bg-black/95 px-4 py-1.5 font-mono text-xs font-black text-red-400 shadow-[0_0_25px_rgba(239,68,68,0.8)] animate-pulse">
+                  <AlertTriangle className="h-4 w-4 text-red-500 animate-spin" />
+                  <span>⚠️ EMP: TARGETING JAMMED! MANUAL AIM ACTIVE!</span>
+                </div>
+              )}
 
-            {/* Floating Combo Alert */}
-            {comboAlert && (
-              <div className="absolute top-16 z-30 animate-bounce rounded-lg border border-amber-400 bg-black/90 px-4 py-1.5 font-mono text-sm font-black text-amber-300 shadow-[0_0_20px_rgba(250,204,21,0.6)]">
-                {comboAlert}
-              </div>
-            )}
+              {/* Floating Combo Alert */}
+              {comboAlert && (
+                <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 animate-bounce rounded-lg border border-amber-400 bg-black/90 px-3 py-1 font-mono text-xs font-black text-amber-300 shadow-[0_0_15px_rgba(250,204,21,0.5)]">
+                  {comboAlert}
+                </div>
+              )}
 
-            {/* Floating Power-up Acquired Toast */}
-            {powerupToast && (
-              <div
-                style={{ borderColor: powerupToast.color, boxShadow: `0 0 25px ${powerupToast.color}66` }}
-                className="absolute top-20 z-40 flex items-center space-x-3 rounded-xl border-2 bg-black/95 px-4 py-2.5 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200"
-              >
+              {/* Non-intrusive Top-Right Power-up Notification */}
+              {powerupToast && (
                 <div
-                  style={{ backgroundColor: `${powerupToast.color}25`, color: powerupToast.color }}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/20"
+                  style={{ borderColor: powerupToast.color, boxShadow: `0 0 15px ${powerupToast.color}40` }}
+                  className="absolute top-2 right-2 z-40 max-w-[220px] flex items-center space-x-2 rounded-xl border bg-black/90 px-2.5 py-1 backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-150"
                 >
-                  {renderPowerupIcon(powerupToast.icon, 'h-5 w-5')}
-                </div>
-                <div className="text-left font-mono">
-                  <div className="flex items-center space-x-1.5 text-xs font-black" style={{ color: powerupToast.color }}>
-                    <span>⚡ POWER-UP ACQUIRED:</span>
-                    <span className="text-white">{powerupToast.name.toUpperCase()}</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-300 font-sans leading-tight mt-0.5">
-                    {powerupToast.description}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Chaos Alert Banner */}
-            {chaosAlert && !bossInfo && (
-              <div className="absolute top-4 z-30 animate-bounce rounded-lg border border-pink-500 bg-black/90 px-4 py-1.5 font-mono text-xs font-black text-pink-400 shadow-[0_0_20px_rgba(236,72,153,0.6)]">
-                {chaosAlert}
-              </div>
-            )}
-
-            {/* Phaser Game Canvas */}
-            <div className="w-full flex justify-center">
-              <PhaserGame
-                key={gameKey}
-                ref={gameHandleRef}
-                config={gameConfig}
-                callbacks={phaserCallbacks}
-                isStarted={hasStarted}
-                starterAugment={selectedStarterAugment}
-                triggerAbilityCount={abilityTriggerCount}
-                touchVector={touchVector}
-              />
-            </div>
-
-            {/* IN-GAME FLOATING COMBAT HEADS-UP HUD (Vitality & Ultimate Mana) */}
-            {hasStarted && !runResults && (
-              <div className="pointer-events-none absolute bottom-3 left-3 right-3 sm:left-6 sm:right-6 z-30 flex flex-col items-center">
-                {/* Ultimate Ready Alert Banner */}
-                {essence.isReady && !essence.isActive && (
-                  <button
-                    onClick={handleTriggerUltimate}
-                    className="pointer-events-auto mb-1.5 flex items-center space-x-1.5 rounded-full border border-amber-400 bg-amber-950/90 px-3.5 py-1 text-[11px] font-mono font-black text-amber-300 shadow-[0_0_25px_rgba(245,158,11,0.9)] animate-bounce cursor-pointer hover:bg-amber-900 transition"
+                  <div
+                    style={{ backgroundColor: `${powerupToast.color}25`, color: powerupToast.color }}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-white/20"
                   >
-                    <Sparkles className="h-3.5 w-3.5 fill-current text-amber-400" />
-                    <span>⚡ ULTIMATE READY! TAP / PRESS [F / SPACE]</span>
-                  </button>
-                )}
-                {essence.isActive && (
-                  <div className="mb-1.5 flex items-center space-x-1.5 rounded-full border border-amber-400 bg-black/90 px-3 py-0.5 text-[10px] font-mono font-black text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.8)] animate-pulse">
-                    <Flame className="h-3 w-3 text-amber-400" />
-                    <span>BURNING ULTIMATE: {gameConfig.signatureSkill.name.toUpperCase()}</span>
+                    {renderPowerupIcon(powerupToast.icon, 'h-3.5 w-3.5')}
                   </div>
-                )}
-
-                {/* Floating Combat Dashboard */}
-                <div className="w-full max-w-md rounded-2xl border border-zinc-700/80 bg-zinc-950/90 p-2 sm:p-2.5 backdrop-blur-md shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto">
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {/* Vitality (HP) Gauge */}
-                    <div>
-                      <div className="flex items-center justify-between font-mono text-[10px] sm:text-[11px] font-black">
-                        <span className="flex items-center space-x-1 text-red-400">
-                          <Heart className="h-3 w-3 fill-current text-red-500" />
-                          <span>VITALITY</span>
-                        </span>
-                        <span className="text-white">
-                          {Math.round(hp)} / {maxHp}
-                        </span>
-                      </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
-                        <div
-                          style={{ width: `${hpPercent}%` }}
-                          className={`h-full transition-all duration-150 ${
-                            hpPercent > 50
-                              ? 'bg-gradient-to-r from-emerald-500 to-green-400'
-                              : hpPercent > 25
-                              ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
-                              : 'bg-gradient-to-r from-red-600 to-red-400 animate-pulse'
-                          }`}
-                        />
-                      </div>
+                  <div className="text-left font-mono truncate">
+                    <div className="text-[10px] font-black truncate" style={{ color: powerupToast.color }}>
+                      {powerupToast.name.toUpperCase()}
                     </div>
-
-                    {/* Mana / Ultimate Essence Gauge */}
-                    <div>
-                      <div className="flex items-center justify-between font-mono text-[10px] sm:text-[11px] font-black">
-                        <span className="flex items-center space-x-1 text-amber-400">
-                          <Star className={`h-3 w-3 ${essence.isReady ? 'fill-current text-amber-400' : 'text-zinc-500'}`} />
-                          <span>ULT MANA</span>
-                        </span>
-                        <span className={essence.isReady ? 'text-amber-300 font-black animate-pulse' : 'text-zinc-400'}>
-                          {essence.isActive ? 'BURNING' : essence.isReady ? '100% READY' : `${essence.current}%`}
-                        </span>
-                      </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
-                        <div
-                          style={{ width: `${essence.isActive ? 100 : essence.current}%` }}
-                          className={`h-full transition-all duration-150 ${
-                            essence.isActive
-                              ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 animate-pulse'
-                              : essence.isReady
-                              ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'
-                              : 'bg-gradient-to-r from-cyan-500 to-blue-500'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Micro subline: Hero Skill & Starter Perk */}
-                  <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-zinc-400 border-t border-zinc-800/80 pt-1">
-                    <div className="flex items-center space-x-1 text-emerald-400">
-                      <Zap className="h-2.5 w-2.5 shrink-0" />
-                      <span>HERO SKILL: {abilityReady ? 'READY [SPACE]' : `${abilityCooldown}s`}</span>
-                    </div>
-                    {selectedStarterAugment && (
-                      <div className="flex items-center space-x-1 text-amber-300 font-bold">
-                        <span>PERK:</span>
-                        <span>{STARTER_AUGMENTS[selectedStarterAugment].statBadge}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
+              )}
+
+              {/* Chaos Alert Banner */}
+              {chaosAlert && !bossInfo && (
+                <div className="absolute top-2 z-30 animate-bounce rounded-lg border border-pink-500 bg-black/90 px-3 py-1 font-mono text-xs font-black text-pink-400 shadow-[0_0_15px_rgba(236,72,153,0.5)]">
+                  {chaosAlert}
+                </div>
+              )}
+
+              {/* Phaser Game Canvas */}
+              <div className="w-full flex justify-center">
+                <PhaserGame
+                  key={gameKey}
+                  ref={gameHandleRef}
+                  config={gameConfig}
+                  callbacks={phaserCallbacks}
+                  isStarted={hasStarted}
+                  starterAugment={selectedStarterAugment}
+                  triggerAbilityCount={abilityTriggerCount}
+                  touchVector={touchVector}
+                />
               </div>
-            )}
 
             {/* Pre-Run Start Overlay */}
             {!hasStarted && (
@@ -828,6 +806,7 @@ export default function PlayClient({
                 </div>
               </div>
             )}
+            </div>
           </div>
 
           {/* RIGHT PANEL: HUD, BONUS SKILLS & RUN CONTROLS (col-span-3) */}

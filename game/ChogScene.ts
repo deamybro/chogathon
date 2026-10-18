@@ -223,6 +223,11 @@ export class ChogScene extends Phaser.Scene {
   // Overhead Player Mini HUD
   private playerHudGraphics!: Phaser.GameObjects.Graphics;
 
+  // Progressive Stat Growth (per sector transition & overclock level-ups)
+  private progressionMoveSpeedMod = 1.0;
+  private progressionFireRateMod = 1.0;
+  private progressionDamageMod = 1.0;
+
   // Redesigned Twin Cannon Barrels state
   private fireBarrelToggle = false;
   private barrelLeft!: Phaser.GameObjects.Rectangle;
@@ -365,6 +370,9 @@ export class ChogScene extends Phaser.Scene {
     this.ultimateDurationTimer = 0;
     this.fireBarrelToggle = false;
     this.starterPerk = null;
+    this.progressionMoveSpeedMod = 1.0;
+    this.progressionFireRateMod = 1.0;
+    this.progressionDamageMod = 1.0;
     this.activeBonusSkills.clear();
     this.orbitalOrbs = [];
     this.projectiles = [];
@@ -1169,11 +1177,9 @@ export class ChogScene extends Phaser.Scene {
     soundSynth.triggerHaptic(60);
     const meta = BONUS_SKILL_META[type];
 
-    // On-screen notifications
+    // Non-intrusive on-screen pickup notification
     this.callbacks.onPowerupPicked?.(meta.name, meta.description, meta.hex, meta.icon);
-    this.callbacks.onComboAlert?.(`⚡ POWER-UP: ${meta.name.toUpperCase()}`);
-    this.showDamageText(this.playerContainer.x, this.playerContainer.y - 30, `+${meta.name}`, true);
-    this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, meta.color, 30);
+    this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, meta.color, 20);
 
     if (type === 'nuke_bomb') {
       soundSynth.playNuke();
@@ -1373,7 +1379,7 @@ export class ChogScene extends Phaser.Scene {
 
     const speedWarpBonus = this.activeBonusSkills.has('speed_warp') ? 1.7 : 1.0;
     const starterSpeedBonus = this.starterPerk === 'speed' ? 1.30 : 1.0;
-    const baseSpeed = this.configData.archetype.moveSpeed * this.configData.biome.speedModifier * speedWarpBonus * starterSpeedBonus;
+    const baseSpeed = this.configData.archetype.moveSpeed * this.configData.biome.speedModifier * speedWarpBonus * starterSpeedBonus * this.progressionMoveSpeedMod;
     const accel = 1800;
     this.vx += inputX * accel * dt;
     this.vy += inputY * accel * dt;
@@ -1430,7 +1436,7 @@ export class ChogScene extends Phaser.Scene {
     const hyperFireMod = this.activeBonusSkills.has('hyper_firerate') ? 0.45 : 1.0;
     const ultimateFireMod = this.isUltimateActive ? 0.65 : 1.0;
     const starterRateMod = this.starterPerk === 'attack_speed' ? 0.65 : 1.0;
-    const effectiveRate = atk.fireRateMs * hyperFireMod * ultimateFireMod * starterRateMod;
+    const effectiveRate = atk.fireRateMs * hyperFireMod * ultimateFireMod * starterRateMod * this.progressionFireRateMod;
 
     if (time - this.lastFireTime >= effectiveRate) {
       this.lastFireTime = time;
@@ -1458,7 +1464,7 @@ export class ChogScene extends Phaser.Scene {
       const starterCritBonus = this.starterPerk === 'damage' ? 0.10 : 0;
       const isCrit = Math.random() < (this.configData.targeting.critChance + starterCritBonus);
       const starterDmgMod = this.starterPerk === 'damage' ? 1.40 : 1.0;
-      const damage = Math.round((isCrit ? atk.damage * 2 : atk.damage) * starterDmgMod);
+      const damage = Math.round((isCrit ? atk.damage * 2 : atk.damage) * starterDmgMod * this.progressionDamageMod);
 
       soundSynth.playLaser(isCrit);
 
@@ -1810,10 +1816,10 @@ export class ChogScene extends Phaser.Scene {
         }
       }
 
-      // Handle slow timer and progressive level speed scaling
-      const levelSpeedMult = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.35 : 1.70;
+      // Handle slow timer and progressive level speed scaling (balanced and fair)
+      const levelSpeedMult = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.15 : 1.30;
       const isHyperRush = this.levelTimeRemaining <= 10;
-      const rushSpeedMult = isHyperRush ? 1.5 : 1.0;
+      const rushSpeedMult = isHyperRush ? 1.15 : 1.0;
       let speed = enemy.speed * this.configData.difficulty.difficultyMultiplier * levelSpeedMult * rushSpeedMult;
 
       if (enemy.slowTimer > 0) {
@@ -1865,12 +1871,27 @@ export class ChogScene extends Phaser.Scene {
     this.hyperSurgeTriggered = false;
     this.bossSupernovaTimer = 0;
 
-    // Sector Completion Bonus Score & HP Repair
+    // Sector Completion Bonus Score
     const bonusPoints = this.currentLevel === 2 ? 3500 : 6000;
     this.score += bonusPoints;
     this.callbacks.onScoreUpdate(this.score);
 
-    this.hp = Math.min(this.maxHp, this.hp + 35);
+    // Progressive Player Stat Upgrades per sector
+    if (this.currentLevel === 2) {
+      this.maxHp += 25;
+      this.hp = Math.min(this.maxHp, this.hp + 50);
+      this.progressionMoveSpeedMod *= 1.15;
+      this.progressionFireRateMod *= 0.85;
+      this.callbacks.onComboAlert?.('🚀 SECTOR 2 REINFORCEMENTS: +25 HP, +15% SPEED, +15% FIRE RATE!');
+    } else if (this.currentLevel === 3) {
+      this.maxHp += 35;
+      this.hp = Math.min(this.maxHp, this.hp + 70);
+      this.progressionDamageMod *= 1.30;
+      this.progressionMoveSpeedMod *= 1.15;
+      this.callbacks.onComboAlert?.('🔥 OMEGA OVERDRIVE: +35 HP, +30% DAMAGE & +15% SPEED!');
+    } else {
+      this.hp = Math.min(this.maxHp, this.hp + 35);
+    }
     this.callbacks.onHpUpdate(this.hp, this.maxHp);
 
     soundSynth.playLevelUp();
@@ -1878,7 +1899,6 @@ export class ChogScene extends Phaser.Scene {
     this.cameras.main.flash(350, 255, 255, 255);
     this.cameras.main.shake(400, 0.025);
 
-    this.callbacks.onComboAlert?.(`🚀 ADVANCED TO SECTOR ${this.currentLevel}! +${bonusPoints.toLocaleString()} PTS`);
     this.callbacks.onChaosAlert(`WARP: ${this.levelNames[this.currentLevel - 1].toUpperCase()}`);
     this.callbacks.onLevelUpdate?.(
       this.currentLevel,
@@ -2537,9 +2557,9 @@ export class ChogScene extends Phaser.Scene {
       this.enemies.push({
         sprite: container,
         type: 'wasp',
-        hp: 20,
-        maxHp: 20,
-        speed: 160,
+        hp: 18,
+        maxHp: 18,
+        speed: 105,
         scoreValue: 400,
         slowTimer: 0,
         frozenTimer: 0,
@@ -2553,14 +2573,17 @@ export class ChogScene extends Phaser.Scene {
     this.overclockLevel++;
     if (this.overclockLevel === 2) {
       this.nextOverclockExp = 750;
-      this.callbacks.onComboAlert?.('⚡ OVERCLOCK LVL 2: SPREAD MATRIX!');
+      this.progressionDamageMod *= 1.15;
+      this.callbacks.onComboAlert?.('⚡ OVERCLOCK LVL 2: SPREAD MATRIX & +15% DMG!');
     } else if (this.overclockLevel === 3) {
       this.nextOverclockExp = 1800;
-      this.callbacks.onComboAlert?.('🔥 OVERCLOCK LVL 3: EXPLOSIVE PLASMA!');
+      this.progressionFireRateMod *= 0.85;
+      this.callbacks.onComboAlert?.('🔥 OVERCLOCK LVL 3: EXPLOSIVE PLASMA & +15% FIRE RATE!');
     } else if (this.overclockLevel >= 4) {
       this.overclockLevel = 4;
       this.nextOverclockExp = 999999;
-      this.callbacks.onComboAlert?.('🌟 MAX OVERCLOCK GOD MODE!');
+      this.progressionMoveSpeedMod *= 1.20;
+      this.callbacks.onComboAlert?.('🌟 MAX OVERCLOCK GOD MODE: +20% SPEED & PIERCING!');
     }
 
     soundSynth.playLevelUp();
@@ -2649,18 +2672,7 @@ export class ChogScene extends Phaser.Scene {
     // Inner glowing core
     const centerCore = this.add.circle(0, 0, 5, 0xffffff);
 
-    // Floating text label badge above pickup
-    const badgeBg = this.add.rectangle(0, -22, 110, 14, 0x000000, 0.85);
-    badgeBg.setStrokeStyle(1, meta.color);
-    const label = this.add.text(0, -22, meta.name.toUpperCase(), {
-      fontFamily: 'monospace',
-      fontSize: '8px',
-      fontStyle: 'bold',
-      color: meta.hex,
-    });
-    label.setOrigin(0.5);
-
-    container.add([beacon, diamond, centerCore, badgeBg, label]);
+    container.add([beacon, diamond, centerCore]);
 
     // Bobbing and pulse tweens
     this.tweens.add({
