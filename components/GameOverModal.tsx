@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { RunResults } from '@/types/chog';
 import { getCabinetStatus } from '@/lib/storage';
-import { Trophy, Skull, Share2, RotateCcw, Compass, Check, Sparkles } from 'lucide-react';
+import { Trophy, Skull, Share2, RotateCcw, Compass, Check, Sparkles, Coins, Wallet } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { soundSynth } from '@/game/soundEffects';
 
 interface GameOverModalProps {
   results: RunResults;
@@ -14,7 +15,14 @@ interface GameOverModalProps {
 
 export default function GameOverModal({ results, onRestart }: GameOverModalProps) {
   const [copied, setCopied] = useState(false);
+  const [claimStatus, setClaimStatus] = useState<'idle' | 'claiming' | 'claimed'>('idle');
   const cabinetStatus = getCabinetStatus(results.skullCount);
+
+  // Deterministic $CHOG Bounty Calculation
+  const bossBounty = (results.bossesDefeated || 0) * 15;
+  const enemyBounty = Math.min(25, Math.floor((results.enemiesDefeated || 0) / 8) * 2);
+  const victoryBounty = results.victory ? 50 : 0;
+  const totalChogReward = Math.max(5, bossBounty + enemyBounty + victoryBounty);
 
   useEffect(() => {
     if (results.victory) {
@@ -30,8 +38,9 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
   }, [results.victory]);
 
   const handleCopyChallenge = () => {
+    soundSynth.playCoin();
     const url = typeof window !== 'undefined' ? window.location.href : `https://chog969.arcade/play/${results.tokenId}`;
-    const text = `I survived ${results.survivedSeconds}s inside Chog #${results.tokenId}. Can you beat my cartridge? ${url}`;
+    const text = `I survived ${results.survivedSeconds}s inside Chog #${results.tokenId} and earned ${totalChogReward} $CHOG! Can you beat my high score? ${url}`;
 
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => {
@@ -41,9 +50,28 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
     }
   };
 
+  const handleClaimReward = () => {
+    if (claimStatus !== 'idle') return;
+    soundSynth.playCoin();
+    setClaimStatus('claiming');
+
+    setTimeout(() => {
+      setClaimStatus('claimed');
+      soundSynth.playVictory();
+      try {
+        confetti({
+          particleCount: 60,
+          spread: 60,
+          origin: { y: 0.7 },
+          colors: ['#facc15', '#fbbf24', '#f59e0b', '#10b981'],
+        });
+      } catch {}
+    }, 1200);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border-2 border-emerald-500/60 bg-zinc-950 p-6 shadow-[0_0_50px_rgba(34,197,94,0.35)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border-2 border-emerald-500/60 bg-zinc-950 p-5 sm:p-6 shadow-[0_0_50px_rgba(34,197,94,0.35)]">
         {/* Glow Header */}
         <div className="text-center">
           {results.victory ? (
@@ -58,41 +86,90 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
             </div>
           )}
 
-          <h2 className="mt-3 font-mono text-3xl font-black tracking-wide text-white">
-            {results.victory ? '60 SECONDS SURVIVED' : `SURVIVED ${results.survivedSeconds}s`}
+          <h2 className="mt-3 font-mono text-2xl sm:text-3xl font-black tracking-wide text-white">
+            {results.victory ? 'ALL SECTORS CLEARED!' : `SURVIVED ${results.survivedSeconds}s`}
           </h2>
           <p className="mt-1 font-mono text-xs text-zinc-400">
             Cartridge #{results.tokenId} — {results.chogName}
           </p>
         </div>
 
+        {/* Hackathon $CHOG Bounty Reward Banner */}
+        <div className="mt-4 rounded-xl border border-amber-500/50 bg-gradient-to-r from-amber-950/30 via-zinc-900/60 to-amber-950/30 p-3 text-center shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+          <div className="flex items-center justify-between font-mono text-xs">
+            <span className="flex items-center space-x-1.5 font-bold uppercase text-amber-400">
+              <Coins className="h-4 w-4 text-amber-400 animate-bounce" />
+              <span>Monad Hackathon $CHOG Bounty</span>
+            </span>
+            <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-xs font-black text-amber-300 border border-amber-500/40">
+              +{totalChogReward} $CHOG
+            </span>
+          </div>
+
+          <div className="mt-2 flex items-center justify-between text-[11px] font-mono text-zinc-400 border-t border-zinc-800/80 pt-2">
+            <span>Bosses: +{bossBounty}</span>
+            <span>Minions: +{enemyBounty}</span>
+            {results.victory && <span className="text-emerald-400 font-bold">Victory: +50</span>}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleClaimReward}
+            disabled={claimStatus !== 'idle'}
+            className={`mt-2.5 flex w-full items-center justify-center space-x-1.5 rounded-lg py-2 px-3 font-mono text-xs font-black transition cursor-pointer ${
+              claimStatus === 'claimed'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
+                : claimStatus === 'claiming'
+                ? 'bg-amber-500/40 text-amber-200 border border-amber-500/60 animate-pulse'
+                : 'bg-amber-500 text-black hover:bg-amber-400 active:scale-95 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+            }`}
+          >
+            {claimStatus === 'claimed' ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                <span>CLAIMED TO WALLET (+{totalChogReward} $CHOG)</span>
+              </>
+            ) : claimStatus === 'claiming' ? (
+              <>
+                <Wallet className="h-3.5 w-3.5 animate-spin" />
+                <span>SIGNING MONAD CLAIM TX...</span>
+              </>
+            ) : (
+              <>
+                <Wallet className="h-3.5 w-3.5" />
+                <span>CLAIM {totalChogReward} $CHOG TO WALLET</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Stats Grid */}
-        <div className="mt-6 grid grid-cols-2 gap-3 font-mono">
+        <div className="mt-3.5 grid grid-cols-2 gap-2.5 font-mono">
           {/* Score */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 text-center">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5 text-center">
             <span className="text-[10px] uppercase text-zinc-500">Run Score</span>
-            <p className="mt-1 text-2xl font-black text-white">{results.score.toLocaleString()}</p>
+            <p className="mt-1 text-xl sm:text-2xl font-black text-white">{results.score.toLocaleString()}</p>
           </div>
 
           {/* Personal Best */}
-          <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-3 text-center">
+          <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-2.5 text-center">
             <span className="text-[10px] uppercase text-amber-400 flex items-center justify-center space-x-1">
               <Trophy className="h-3 w-3" />
               <span>Personal Best</span>
             </span>
-            <p className="mt-1 text-2xl font-black text-amber-300">
+            <p className="mt-1 text-xl sm:text-2xl font-black text-amber-300">
               {results.personalBest.toLocaleString()}
             </p>
           </div>
 
           {/* Enemies Defeated */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 text-center">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5 text-center">
             <span className="text-[10px] uppercase text-zinc-500">Enemies Defeated</span>
-            <p className="mt-1 text-xl font-bold text-zinc-200">{results.enemiesDefeated}</p>
+            <p className="mt-1 text-lg font-bold text-zinc-200">{results.enemiesDefeated}</p>
           </div>
 
           {/* Cabinet Skulls */}
-          <div className={`rounded-xl border p-3 text-center ${cabinetStatus.badgeColor}`}>
+          <div className={`rounded-xl border p-2.5 text-center ${cabinetStatus.badgeColor}`}>
             <span className="text-[10px] uppercase flex items-center justify-center space-x-1">
               <Skull className="h-3 w-3" />
               <span>Cabinet Status</span>
@@ -118,19 +195,12 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
           </div>
         </div>
 
-        {/* Trait Summary */}
-        <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-300">
-          <span className="block font-mono text-[10px] uppercase font-bold text-zinc-500">
-            Generated Trait Architecture
-          </span>
-          <p className="mt-1 font-mono text-xs text-emerald-400">{results.traitsSummary}</p>
-        </div>
-
         {/* Challenge Copy Button */}
-        <div className="mt-5">
+        <div className="mt-3.5">
           <button
+            type="button"
             onClick={handleCopyChallenge}
-            className="flex w-full items-center justify-center space-x-2 rounded-xl border border-purple-500/60 bg-purple-950/40 py-3 px-4 font-mono text-xs font-bold text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.3)] transition hover:bg-purple-900/60 active:scale-95"
+            className="flex w-full items-center justify-center space-x-2 rounded-xl border border-zinc-700 bg-zinc-900/80 py-2.5 px-4 font-mono text-xs font-bold text-zinc-200 shadow-sm transition hover:border-emerald-500 hover:text-emerald-300 hover:bg-zinc-850 active:scale-95 cursor-pointer"
           >
             {copied ? (
               <>
@@ -139,8 +209,8 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
               </>
             ) : (
               <>
-                <Share2 className="h-4 w-4" />
-                <span>COPY CHALLENGE TEXT</span>
+                <Share2 className="h-4 w-4 text-zinc-400" />
+                <span>SHARE SCORE & CHALLENGE LINK</span>
               </>
             )}
           </button>
@@ -149,8 +219,9 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
         {/* Actions */}
         <div className="mt-3 flex flex-col sm:flex-row items-center gap-2">
           <button
+            type="button"
             onClick={onRestart}
-            className="flex flex-1 w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3 px-4 font-mono text-xs font-bold text-black shadow-[0_0_20px_rgba(34,197,94,0.4)] transition hover:bg-emerald-400 active:scale-95"
+            className="flex flex-1 w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3 px-4 font-mono text-xs font-bold text-black shadow-[0_0_20px_rgba(34,197,94,0.4)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
           >
             <RotateCcw className="h-4 w-4" />
             <span>PLAY AGAIN</span>
@@ -163,7 +234,7 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
             return (
               <Link
                 href={`/play/${nextTokenId}`}
-                className="flex items-center justify-center space-x-1.5 w-full sm:w-auto rounded-xl border border-purple-500/60 bg-purple-950/40 py-3 px-3.5 font-mono text-xs font-bold text-purple-300 hover:bg-purple-900/50 transition"
+                className="flex items-center justify-center space-x-1.5 w-full sm:w-auto rounded-xl border border-purple-500/60 bg-purple-950/40 py-3 px-3.5 font-mono text-xs font-bold text-purple-300 hover:bg-purple-900/50 hover:border-purple-400 transition cursor-pointer"
               >
                 <Sparkles className="h-3.5 w-3.5 text-purple-400" />
                 <span>NEXT #{nextTokenId} ▶</span>
@@ -173,7 +244,7 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
 
           <Link
             href="/browse"
-            className="flex items-center justify-center space-x-1.5 w-full sm:w-auto rounded-xl border border-zinc-700 bg-zinc-900 py-3 px-4 font-mono text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:text-white transition"
+            className="flex items-center justify-center space-x-1.5 w-full sm:w-auto rounded-xl border border-zinc-700 bg-zinc-900 py-3 px-4 font-mono text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:text-white transition cursor-pointer"
           >
             <Compass className="h-4 w-4" />
             <span>ALL CHOGS</span>

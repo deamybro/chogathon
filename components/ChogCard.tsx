@@ -101,7 +101,7 @@ export default function ChogCard({ chog, featured = false }: ChogCardProps) {
         <div className="mt-4 pt-2">
           <Link
             href={`/play/${chog.tokenId}`}
-            className="flex w-full items-center justify-center space-x-2 rounded-lg bg-emerald-500 py-2.5 px-4 font-mono text-xs font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.4)] transition hover:bg-emerald-400 active:scale-95"
+            className="flex w-full items-center justify-center space-x-2 rounded-lg bg-emerald-500 py-2.5 px-4 font-mono text-xs font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.4)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
           >
             <Play className="h-4 w-4 fill-current" />
             <span>PLAY CARTRIDGE</span>

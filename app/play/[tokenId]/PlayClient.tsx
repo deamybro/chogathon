@@ -18,6 +18,7 @@ import ArcadeCabinetFrame from '@/components/ArcadeCabinetFrame';
 import TraitBadge from '@/components/TraitBadge';
 import GameOverModal from '@/components/GameOverModal';
 import MobileControls from '@/components/MobileControls';
+import StoryDialogueModal from '@/components/StoryDialogueModal';
 import type { PhaserGameHandle, StarterAugmentType } from '@/components/PhaserGame';
 import {
   Play,
@@ -218,6 +219,11 @@ export default function PlayClient({
     return deriveGameConfig(initialChog, dailyDream);
   }, [initialChog, dailyDream]);
 
+  // Story Mission Dialogue state
+  const [showDialogue, setShowDialogue] = useState(false);
+  const [dialogueSector, setDialogueSector] = useState(1);
+  const [storyEnabled, setStoryEnabled] = useState(true);
+
   // Starter Augment Spec state (chosen before run starts)
   const [selectedStarterAugment, setSelectedStarterAugment] = useState<StarterAugmentType>('attack_speed');
 
@@ -230,8 +236,33 @@ export default function PlayClient({
     }
   }, [selectedStarterAugment]);
 
+  // Launch button with story dialogue sequence
+  const handleLaunchClick = useCallback((aug?: StarterAugmentType) => {
+    if (storyEnabled) {
+      setDialogueSector(1);
+      setShowDialogue(true);
+    } else {
+      handleStartRun(aug);
+    }
+  }, [storyEnabled, handleStartRun]);
+
+  const handleDialogueComplete = useCallback(() => {
+    setShowDialogue(false);
+    if (!hasStarted) {
+      handleStartRun();
+    }
+  }, [hasStarted, handleStartRun]);
+
+  const handleDialogueSkip = useCallback(() => {
+    setShowDialogue(false);
+    if (!hasStarted) {
+      handleStartRun();
+    }
+  }, [hasStarted, handleStartRun]);
+
   // Restart run
   const handleRestart = () => {
+    setShowDialogue(false);
     setRunResults(null);
     setHasStarted(false);
     setScore(0);
@@ -507,8 +538,9 @@ export default function PlayClient({
             {/* Inspect DNA & Daily Dream */}
             <div className="space-y-2">
               <button
+                type="button"
                 onClick={() => setShowDnaModal(true)}
-                className="flex items-center justify-center space-x-1.5 w-full rounded-xl border border-zinc-700 bg-zinc-900/80 py-2 text-xs font-mono font-semibold text-zinc-300 hover:border-emerald-500 hover:text-emerald-400 transition"
+                className="flex items-center justify-center space-x-1.5 w-full rounded-xl border border-zinc-700 bg-zinc-900/80 py-2 text-xs font-mono font-semibold text-zinc-300 hover:border-emerald-500 hover:text-emerald-400 hover:bg-zinc-850 transition cursor-pointer"
               >
                 <Dna className="h-3.5 w-3.5" />
                 <span>INSPECT CARTRIDGE DNA</span>
@@ -798,9 +830,34 @@ export default function PlayClient({
                     </div>
                   </div>
 
+                  {/* Story Briefing Options */}
+                  <div className="mt-4 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-xs font-mono">
+                    <label className="flex items-center space-x-2 text-zinc-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={storyEnabled}
+                        onChange={(e) => setStoryEnabled(e.target.checked)}
+                        className="rounded border-zinc-700 bg-zinc-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <span className="text-[11px] font-bold text-zinc-200">Story & Boss Banter</span>
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDialogueSector(1);
+                        setShowDialogue(true);
+                      }}
+                      className="flex items-center space-x-1 text-[10px] font-bold text-cyan-400 hover:text-cyan-300 transition cursor-pointer"
+                    >
+                      <Sparkles className="h-3 w-3 text-cyan-400" />
+                      <span>PREVIEW STORY BRIEFING</span>
+                    </button>
+                  </div>
+
                   <button
-                    onClick={() => handleStartRun()}
-                    className="mt-5 flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3.5 px-6 font-mono text-sm font-black text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
+                    onClick={() => handleLaunchClick()}
+                    className="mt-3.5 flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3.5 px-6 font-mono text-sm font-black text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
                   >
                     <Play className="h-5 w-5 fill-current" />
                     <span>LAUNCH RUN ({STARTER_AUGMENTS[selectedStarterAugment].statBadge})</span>
@@ -942,8 +999,9 @@ export default function PlayClient({
                 {/* One-click button if ready */}
                 {essence.isReady && !essence.isActive && (
                   <button
+                    type="button"
                     onClick={handleTriggerUltimate}
-                    className="mt-2 flex items-center justify-center space-x-1 w-full rounded-lg bg-emerald-500 py-1 font-mono text-[10px] font-black text-black hover:bg-emerald-400 transition shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95"
+                    className="mt-2 flex items-center justify-center space-x-1 w-full rounded-lg bg-emerald-500 py-1 font-mono text-[10px] font-black text-black hover:bg-emerald-400 transition shadow-[0_0_15px_rgba(16,185,129,0.5)] active:scale-95 cursor-pointer"
                   >
                     <Zap className="h-3 w-3 fill-current" />
                     <span>UNLEASH AVATAR ULTIMATE</span>
@@ -1061,12 +1119,12 @@ export default function PlayClient({
               {/* Auto-Aim Optional Toggle Button */}
               <button
                 onClick={handleToggleAutoAim}
-                className={`flex items-center justify-between w-full rounded-xl border p-2 text-xs font-mono transition ${
+                className={`flex items-center justify-between w-full rounded-xl border p-2 text-xs font-mono transition cursor-pointer ${
                   autoAim.isScrambled
                     ? 'border-red-500 bg-red-950/40 text-red-400 animate-pulse'
                     : autoAim.enabled
-                    ? 'border-cyan-500/40 bg-cyan-950/20 text-cyan-300 hover:border-cyan-400'
-                    : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700'
+                    ? 'border-cyan-500/40 bg-cyan-950/20 text-cyan-300 hover:border-cyan-400 hover:bg-cyan-950/40'
+                    : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
                 }`}
               >
                 <span className="flex items-center space-x-1.5">
@@ -1086,8 +1144,9 @@ export default function PlayClient({
 
               {/* BGM Audio Toggle */}
               <button
+                type="button"
                 onClick={toggleBgm}
-                className="flex items-center justify-between w-full rounded-xl border border-zinc-800 bg-zinc-900/60 p-2 text-xs font-mono text-zinc-300 hover:border-zinc-600 transition"
+                className="flex items-center justify-between w-full rounded-xl border border-zinc-800 bg-zinc-900/60 p-2 text-xs font-mono text-zinc-300 hover:border-zinc-600 hover:text-white hover:bg-zinc-850 transition cursor-pointer"
               >
                 <span className="flex items-center space-x-1.5">
                   <Music className="h-3.5 w-3.5 text-emerald-400" />
@@ -1102,8 +1161,9 @@ export default function PlayClient({
             {/* Run Actions */}
             <div className="space-y-1.5 pt-2 border-t border-zinc-800">
               <button
+                type="button"
                 onClick={handleRestart}
-                className="flex w-full items-center justify-center space-x-2 rounded-xl border border-zinc-700 bg-zinc-900 py-2.5 px-4 font-mono text-xs font-bold text-zinc-200 hover:border-zinc-500 hover:text-white transition"
+                className="flex w-full items-center justify-center space-x-2 rounded-xl border border-zinc-700 bg-zinc-900 py-2.5 px-4 font-mono text-xs font-bold text-zinc-200 hover:border-zinc-500 hover:text-white hover:bg-zinc-850 transition cursor-pointer"
               >
                 <RotateCcw className="h-4 w-4" />
                 <span>RESTART [R]</span>
@@ -1116,7 +1176,7 @@ export default function PlayClient({
                 return (
                   <Link
                     href={`/play/${nextTokenId}`}
-                    className="flex w-full items-center justify-center space-x-2 rounded-xl border border-purple-500/40 bg-purple-950/20 py-2 px-4 font-mono text-xs font-bold text-purple-300 hover:bg-purple-900/40 transition"
+                    className="flex w-full items-center justify-center space-x-2 rounded-xl border border-purple-500/40 bg-purple-950/20 py-2 px-4 font-mono text-xs font-bold text-purple-300 hover:bg-purple-900/40 hover:border-purple-400 hover:text-purple-200 transition cursor-pointer"
                   >
                     <Sparkles className="h-3.5 w-3.5 text-purple-400" />
                     <span>NEXT CARTRIDGE #{nextTokenId} ▶</span>
@@ -1126,7 +1186,7 @@ export default function PlayClient({
 
               <Link
                 href="/browse"
-                className="flex w-full items-center justify-center space-x-2 rounded-xl bg-zinc-800/60 py-2 px-4 font-mono text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white transition"
+                className="flex w-full items-center justify-center space-x-2 rounded-xl bg-zinc-800/60 py-2 px-4 font-mono text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white transition cursor-pointer"
               >
                 <Compass className="h-4 w-4" />
                 <span>ALL CARTRIDGES</span>
@@ -1149,6 +1209,15 @@ export default function PlayClient({
           onToggleAutoAim={handleToggleAutoAim}
         />
       </ArcadeCabinetFrame>
+
+      {/* STORY DIALOGUE MODAL */}
+      <StoryDialogueModal
+        isOpen={showDialogue}
+        chog={initialChog}
+        sector={dialogueSector}
+        onComplete={handleDialogueComplete}
+        onSkip={handleDialogueSkip}
+      />
 
       {/* GAME OVER / RUN RESULTS MODAL */}
       {runResults && (
