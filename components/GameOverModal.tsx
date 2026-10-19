@@ -18,11 +18,12 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
   const [claimStatus, setClaimStatus] = useState<'idle' | 'claiming' | 'claimed'>('idle');
   const cabinetStatus = getCabinetStatus(results.skullCount);
 
-  // Deterministic $CHOG Bounty Calculation
-  const bossBounty = (results.bossesDefeated || 0) * 15;
-  const enemyBounty = Math.min(25, Math.floor((results.enemiesDefeated || 0) / 8) * 2);
-  const victoryBounty = results.victory ? 50 : 0;
-  const totalChogReward = Math.max(5, bossBounty + enemyBounty + victoryBounty);
+  // Micro $CHOG Bounty Calculation (Calibrated for ~$1 community prize pool)
+  const baseBounty = 0.01;
+  const bossBounty = (results.bossesDefeated || 0) * 0.02;
+  const enemyBounty = Math.min(0.015, Math.floor((results.enemiesDefeated || 0) / 10) * 0.002);
+  const victoryBounty = results.victory ? 0.05 : 0;
+  const totalChogReward = Number((baseBounty + bossBounty + enemyBounty + victoryBounty).toFixed(3));
 
   useEffect(() => {
     if (results.victory) {
@@ -40,7 +41,7 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
   const handleCopyChallenge = () => {
     soundSynth.playCoin();
     const url = typeof window !== 'undefined' ? window.location.href : `https://chog969.arcade/play/${results.tokenId}`;
-    const text = `I survived ${results.survivedSeconds}s inside Chog #${results.tokenId} and earned ${totalChogReward} $CHOG! Can you beat my high score? ${url}`;
+    const text = `I survived ${results.survivedSeconds}s inside Chog #${results.tokenId} and earned ${totalChogReward.toFixed(3)} $CHOG in the Monad Hackathon! Can you beat my high score? ${url}`;
 
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => {
@@ -102,14 +103,15 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
               <span>Monad Hackathon $CHOG Bounty</span>
             </span>
             <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-xs font-black text-amber-300 border border-amber-500/40">
-              +{totalChogReward} $CHOG
+              +{totalChogReward.toFixed(3)} $CHOG
             </span>
           </div>
 
           <div className="mt-2 flex items-center justify-between text-[11px] font-mono text-zinc-400 border-t border-zinc-800/80 pt-2">
-            <span>Bosses: +{bossBounty}</span>
-            <span>Minions: +{enemyBounty}</span>
-            {results.victory && <span className="text-emerald-400 font-bold">Victory: +50</span>}
+            <span>Base: +0.010</span>
+            <span>Bosses: +{bossBounty.toFixed(3)}</span>
+            <span>Minions: +{enemyBounty.toFixed(3)}</span>
+            {results.victory && <span className="text-emerald-400 font-bold">Victory: +0.050</span>}
           </div>
 
           <button
@@ -127,7 +129,7 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
             {claimStatus === 'claimed' ? (
               <>
                 <Check className="h-3.5 w-3.5 text-emerald-400" />
-                <span>CLAIMED TO WALLET (+{totalChogReward} $CHOG)</span>
+                <span>CLAIMED TO WALLET (+{totalChogReward.toFixed(3)} $CHOG)</span>
               </>
             ) : claimStatus === 'claiming' ? (
               <>
@@ -137,7 +139,7 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
             ) : (
               <>
                 <Wallet className="h-3.5 w-3.5" />
-                <span>CLAIM {totalChogReward} $CHOG TO WALLET</span>
+                <span>CLAIM {totalChogReward.toFixed(3)} $CHOG TO WALLET</span>
               </>
             )}
           </button>

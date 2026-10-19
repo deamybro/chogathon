@@ -14,6 +14,7 @@ export interface PhaserGameHandle {
   triggerUltimate: () => void;
   setTouchMovement: (x: number, y: number) => void;
   toggleAutoAim: () => boolean;
+  setPaused: (paused: boolean) => void;
 }
 
 export interface PhaserGameProps {
@@ -71,6 +72,14 @@ const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
           }
         }
         return false;
+      },
+      setPaused: (paused: boolean) => {
+        if (gameRef.current) {
+          const scene = gameRef.current.scene.getScene('ChogScene') as ChogScene;
+          if (scene) {
+            scene.setPaused(paused);
+          }
+        }
       },
     }));
 

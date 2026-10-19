@@ -222,7 +222,7 @@ export default function PlayClient({
   // Story Mission Dialogue state
   const [showDialogue, setShowDialogue] = useState(false);
   const [dialogueSector, setDialogueSector] = useState(1);
-  const [storyEnabled, setStoryEnabled] = useState(true);
+  const [pendingVictoryResults, setPendingVictoryResults] = useState<RunResults | null>(null);
 
   // Starter Augment Spec state (chosen before run starts)
   const [selectedStarterAugment, setSelectedStarterAugment] = useState<StarterAugmentType>('attack_speed');
@@ -236,33 +236,43 @@ export default function PlayClient({
     }
   }, [selectedStarterAugment]);
 
-  // Launch button with story dialogue sequence
+  // Launch button triggers Sector 1 pre-mission dialogue
   const handleLaunchClick = useCallback((aug?: StarterAugmentType) => {
-    if (storyEnabled) {
-      setDialogueSector(1);
-      setShowDialogue(true);
-    } else {
-      handleStartRun(aug);
+    if (aug) {
+      setSelectedStarterAugment(aug);
     }
-  }, [storyEnabled, handleStartRun]);
+    setDialogueSector(1);
+    setShowDialogue(true);
+  }, []);
 
   const handleDialogueComplete = useCallback(() => {
     setShowDialogue(false);
     if (!hasStarted) {
       handleStartRun();
+    } else if (pendingVictoryResults) {
+      setRunResults(pendingVictoryResults);
+      setPendingVictoryResults(null);
+    } else {
+      gameHandleRef.current?.setPaused(false);
     }
-  }, [hasStarted, handleStartRun]);
+  }, [hasStarted, handleStartRun, pendingVictoryResults]);
 
   const handleDialogueSkip = useCallback(() => {
     setShowDialogue(false);
     if (!hasStarted) {
       handleStartRun();
+    } else if (pendingVictoryResults) {
+      setRunResults(pendingVictoryResults);
+      setPendingVictoryResults(null);
+    } else {
+      gameHandleRef.current?.setPaused(false);
     }
-  }, [hasStarted, handleStartRun]);
+  }, [hasStarted, handleStartRun, pendingVictoryResults]);
 
   // Restart run
   const handleRestart = () => {
     setShowDialogue(false);
+    setPendingVictoryResults(null);
     setRunResults(null);
     setHasStarted(false);
     setScore(0);
@@ -393,6 +403,13 @@ export default function PlayClient({
       onOverclockUpdate: (level: number, currentExp: number, nextExp: number) => {
         setOverclock({ level, currentExp, nextExp });
       },
+      onSectorAdvance: (newLevel: number) => {
+        setDialogueSector(newLevel);
+        setShowDialogue(true);
+        if (gameHandleRef.current) {
+          gameHandleRef.current.setPaused(true);
+        }
+      },
       onGameOver: (results: RunResults) => {
         const newSkulls = incrementSkullCount(results.tokenId);
         const newBest = recordScore(results.tokenId, results.score);
@@ -410,11 +427,16 @@ export default function PlayClient({
         const currentSkulls = getSkullCount(results.tokenId);
         setBestScore(newBest);
 
-        setRunResults({
+        const fullResults: RunResults = {
           ...results,
           skullCount: currentSkulls,
           personalBest: newBest,
-        });
+        };
+
+        // Trigger Conclusion Dialogue (Sector 4) before showing victory results
+        setPendingVictoryResults(fullResults);
+        setDialogueSector(4);
+        setShowDialogue(true);
       },
       onChaosAlert: (msg: string) => {
         setChaosAlert(msg);
@@ -830,34 +852,9 @@ export default function PlayClient({
                     </div>
                   </div>
 
-                  {/* Story Briefing Options */}
-                  <div className="mt-4 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-xs font-mono">
-                    <label className="flex items-center space-x-2 text-zinc-300 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={storyEnabled}
-                        onChange={(e) => setStoryEnabled(e.target.checked)}
-                        className="rounded border-zinc-700 bg-zinc-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
-                      />
-                      <span className="text-[11px] font-bold text-zinc-200">Story & Boss Banter</span>
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDialogueSector(1);
-                        setShowDialogue(true);
-                      }}
-                      className="flex items-center space-x-1 text-[10px] font-bold text-cyan-400 hover:text-cyan-300 transition cursor-pointer"
-                    >
-                      <Sparkles className="h-3 w-3 text-cyan-400" />
-                      <span>PREVIEW STORY BRIEFING</span>
-                    </button>
-                  </div>
-
                   <button
                     onClick={() => handleLaunchClick()}
-                    className="mt-3.5 flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3.5 px-6 font-mono text-sm font-black text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
+                    className="mt-4 flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3.5 px-6 font-mono text-sm font-black text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
                   >
                     <Play className="h-5 w-5 fill-current" />
                     <span>LAUNCH RUN ({STARTER_AUGMENTS[selectedStarterAugment].statBadge})</span>

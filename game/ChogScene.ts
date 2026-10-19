@@ -25,6 +25,7 @@ export interface GameCallbacks {
   onChaosAlert: (message: string) => void;
   onGameStart?: () => void;
   onLevelUpdate?: (currentLevel: number, totalLevels: number, levelName: string, timeInLevel: number) => void;
+  onSectorAdvance?: (newLevel: number) => void;
   onAutoAimStatus?: (enabled: boolean, isScrambled: boolean) => void;
 }
 
@@ -689,6 +690,17 @@ export class ChogScene extends Phaser.Scene {
       soundSynth.stopBgm();
     } else {
       this.callbacks.onChaosAlert('RESUMED');
+      if (this.isGameStarted && !this.isFinished) {
+        soundSynth.startBgm();
+      }
+    }
+  }
+
+  public setPaused(paused: boolean): void {
+    this.isPaused = paused;
+    if (this.isPaused) {
+      soundSynth.stopBgm();
+    } else {
       if (this.isGameStarted && !this.isFinished) {
         soundSynth.startBgm();
       }
@@ -2120,6 +2132,8 @@ export class ChogScene extends Phaser.Scene {
         this.enemies.splice(i, 1);
       }
     }
+
+    this.callbacks.onSectorAdvance?.(this.currentLevel);
   }
 
   private spawnSubBossStalker() {

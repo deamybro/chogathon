@@ -83,7 +83,41 @@ export const SECTOR_DIALOGUES: Record<number, DialogueLine[]> = {
       speakerTitle: 'ULTIMATE ESSENCE AT 100%',
       avatarType: 'chog',
       mood: 'determined',
-      text: 'Talk is cheap, Prime. The entire Monad ecosystem is watching this final sector. That 100 $CHOG Bounty is mine!',
+      text: 'Talk is cheap, Prime. The entire Monad ecosystem is watching this final sector. The Genesis $CHOG Bounty is mine!',
+    },
+  ],
+  4: [
+    {
+      speaker: 'boss',
+      speakerName: 'OMEGA DREADNOUGHT PRIME',
+      speakerTitle: 'CORE COMPROMISED • CRITICAL SYSTEM FAILURE',
+      avatarType: 'boss_omega',
+      mood: 'threatening',
+      text: 'CORE INTEGRITY ZERO PERCENT... CONTAINMENT MATRIX COLLAPSING... Impossible... How could a single arcade Operative breach the Dreadnought Hive...',
+    },
+    {
+      speaker: 'player',
+      speakerName: 'CHOG OPERATIVE',
+      speakerTitle: 'MISSION ACCOMPLISHED • RETRIEVAL COMPLETE',
+      avatarType: 'chog',
+      mood: 'cocky',
+      text: 'Because around here, piloting instincts beat raw brute force every single time! Genesis $CHOG Core is secured in the cargo hold.',
+    },
+    {
+      speaker: 'boss',
+      speakerName: 'MONAD COMMAND UPLINK',
+      speakerTitle: 'AUTOMATED NETWORK TELEMETRY',
+      avatarType: 'boss_alpha',
+      mood: 'threatening',
+      text: 'ALL 3 SECTORS SECURED. TRANSMITTING DATA LOGS TO MONAD HACKATHON PROTOCOL. BOUNTY VAULT UNLOCKED.',
+    },
+    {
+      speaker: 'player',
+      speakerName: 'CHOG OPERATIVE',
+      speakerTitle: 'VICTORY SECURED',
+      avatarType: 'chog',
+      mood: 'determined',
+      text: 'Sector liberated, Genesis payload delivered! Let us sign the transaction and claim our $CHOG bounty!',
     },
   ],
 };
@@ -107,6 +141,13 @@ export default function StoryDialogueModal({
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Reset line index when opening a new sector
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentLineIndex(0);
+    }
+  }, [isOpen, sector]);
 
   const lines = SECTOR_DIALOGUES[sector] || SECTOR_DIALOGUES[1];
   const currentLine = lines[currentLineIndex] || lines[0];
@@ -195,7 +236,11 @@ export default function StoryDialogueModal({
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center space-x-1.5">
               <Terminal className="h-3.5 w-3.5" />
-              <span>TRANSMISSION DECRYPTED • SECTOR {sector} STORY BRIEFING</span>
+              <span>
+                {sector === 4
+                  ? 'MISSION ACCOMPLISHED • GENESIS CORE SECURED'
+                  : `TRANSMISSION DECRYPTED • SECTOR ${sector} STORY BRIEFING`}
+              </span>
             </span>
           </div>
 
@@ -250,7 +295,7 @@ export default function StoryDialogueModal({
                 {chog.name}
               </p>
               <p className="text-[10px] font-mono text-cyan-400/80 truncate">
-                GENESIS BOUNTY HUNTER
+                {sector === 4 ? 'LIBERATOR HERO' : 'GENESIS BOUNTY HUNTER'}
               </p>
             </div>
           </div>
@@ -277,18 +322,20 @@ export default function StoryDialogueModal({
             <div className="min-w-0">
               <div className="flex items-center space-x-1">
                 <span className="rounded bg-red-500/20 px-1.5 py-0.5 font-mono text-[9px] font-black text-red-300 border border-red-500/40">
-                  {sector === 3 ? 'OMEGA BOSS' : sector === 2 ? 'OVERCHARGED BOSS' : 'SECTOR 1 BOSS'}
+                  {sector === 4 ? 'SECURED' : sector === 3 ? 'OMEGA BOSS' : sector === 2 ? 'OVERCHARGED BOSS' : 'SECTOR 1 BOSS'}
                 </span>
               </div>
               <p className="mt-1 font-mono text-xs sm:text-sm font-black text-red-400 truncate">
-                {sector === 3
+                {sector === 4
+                  ? 'GENESIS CORE SECURED'
+                  : sector === 3
                   ? 'OMEGA DREADNOUGHT'
                   : sector === 2
                   ? 'COLOSSUS BETA'
                   : 'VOID COLOSSUS'}
               </p>
               <p className="text-[10px] font-mono text-zinc-400 truncate">
-                ROGUE MONAD MAINFRAME
+                {sector === 4 ? 'SYSTEM RESTORED' : 'ROGUE MONAD MAINFRAME'}
               </p>
             </div>
           </div>
