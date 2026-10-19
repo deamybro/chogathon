@@ -973,9 +973,10 @@ export class ChogScene extends Phaser.Scene {
     if (this.levelTimeRemaining <= 10 && !this.surgeAnnounced) {
       this.surgeAnnounced = true;
       soundSynth.playBossAlert();
-      this.cameras.main.shake(350, 0.022);
-      this.callbacks.onChaosAlert('⚡ SURGE DETECTED! 10S ENEMY OVERDRIVE (+30% SPEED)!');
-      this.callbacks.onComboAlert?.('⚠️ MASSIVE SURGE HORDE INCOMING!');
+      this.cameras.main.shake(350, 0.022 + this.currentLevel * 0.004);
+      const rushSpeedPercent = this.currentLevel === 1 ? '20%' : this.currentLevel === 2 ? '35%' : '50%';
+      this.callbacks.onChaosAlert(`⚡ SURGE DETECTED! 10S OVERDRIVE (+${rushSpeedPercent} SPEED)!`);
+      this.callbacks.onComboAlert?.(`⚠️ SECTOR ${this.currentLevel} HYPER SURGE HORDE INCOMING!`);
     }
 
     // 1. Level time countdown (Throttled callback)
@@ -1804,10 +1805,14 @@ export class ChogScene extends Phaser.Scene {
     const elapsed = this.getLevelDuration(this.currentLevel) - this.levelTimeRemaining;
 
     const isHyperRush = this.levelTimeRemaining <= 10;
-    // Faster spawn intervals and higher enemy density in higher sectors, surging heavily during the last 10s
+    // Faster spawn intervals and higher enemy density in higher sectors
+    // Escalating rush intensity: each rush is far more deadly and swarming than the last!
+    const rushDensity = this.currentLevel === 1 ? 2.5 : this.currentLevel === 2 ? 3.8 : 5.5;
     const baseDensity = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.35 : 1.6;
-    const densityMult = baseDensity * (isHyperRush ? 2.2 : 1.0);
-    const minInterval = isHyperRush ? 0.12 : 0.25;
+    const densityMult = baseDensity * (isHyperRush ? rushDensity : 1.0);
+    const minInterval = isHyperRush
+      ? (this.currentLevel === 1 ? 0.12 : this.currentLevel === 2 ? 0.08 : 0.05)
+      : 0.25;
     const spawnInterval = Phaser.Math.Clamp(
       ((1.4 - (elapsed / 60) * 1.0) / (this.configData.dailyDream.spawnRateMultiplier * densityMult)),
       minInterval,
@@ -1818,8 +1823,11 @@ export class ChogScene extends Phaser.Scene {
       this.nextSpawnTime = now + spawnInterval;
       this.spawnWaveEnemy(elapsed);
       if (isHyperRush) {
-        // Dense horde surge: additional wave spawn during the final 10s
-        this.spawnWaveEnemy(elapsed);
+        // Additional wave spawns during rush: Sector 1 (+1 extra), Sector 2 (+2 extra), Sector 3 (+3 extra)
+        const extraRushSpawns = this.currentLevel === 1 ? 1 : this.currentLevel === 2 ? 2 : 3;
+        for (let s = 0; s < extraRushSpawns; s++) {
+          this.spawnWaveEnemy(elapsed);
+        }
       }
     }
 
@@ -1991,10 +1999,15 @@ export class ChogScene extends Phaser.Scene {
         }
       }
 
-      // Handle slow timer and progressive level speed scaling (balanced and fair)
+      // Handle progressive level speed scaling and escalating rush speed
+      // Level 1 rush: +20% speed
+      // Level 2 rush: +35% speed
+      // Level 3 rush: +50% speed
       const levelSpeedMult = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.15 : 1.30;
       const isHyperRush = this.levelTimeRemaining <= 10;
-      const rushSpeedMult = isHyperRush ? 1.30 : 1.0; // 30% faster during 10-second hyper rush
+      const rushSpeedMult = isHyperRush
+        ? (this.currentLevel === 1 ? 1.20 : this.currentLevel === 2 ? 1.35 : 1.50)
+        : 1.0;
       let speed = enemy.speed * this.configData.difficulty.difficultyMultiplier * levelSpeedMult * rushSpeedMult;
 
       if (enemy.slowTimer > 0) {
@@ -2012,14 +2025,14 @@ export class ChogScene extends Phaser.Scene {
         enemy.sprite.y += (dy / dist) * speed * dt;
       }
 
-      // Damage player on contact
+      // Damage player on contact (each sector boss and sub-boss hits harder)
       const contactRadius = enemy.isBoss ? 44 : enemy.isSubBoss ? 32 : 22;
       if (dist < contactRadius) {
         if (!this.isShielded) {
           const dmg = enemy.isBoss
-            ? 36
+            ? (this.currentLevel === 3 ? 46 : this.currentLevel === 2 ? 38 : 32)
             : enemy.isSubBoss
-            ? 26
+            ? (this.currentLevel === 3 ? 34 : this.currentLevel === 2 ? 28 : 24)
             : enemy.type === 'brute'
             ? 22
             : enemy.type === 'wasp'
@@ -2157,9 +2170,9 @@ export class ChogScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    const levelMod = this.currentLevel === 3 ? 1.3 : this.currentLevel === 2 ? 1.15 : 1.0;
-    const hp = Math.round(750 * this.configData.difficulty.difficultyMultiplier * levelMod);
-    const shield = Math.round(350 * this.configData.difficulty.difficultyMultiplier * levelMod);
+    const levelMod = this.currentLevel === 3 ? 1.5 : this.currentLevel === 2 ? 1.25 : 1.0;
+    const hp = Math.round(850 * this.configData.difficulty.difficultyMultiplier * levelMod);
+    const shield = Math.round(400 * this.configData.difficulty.difficultyMultiplier * levelMod);
 
     const enemy: Enemy = {
       sprite: container,
@@ -2169,7 +2182,7 @@ export class ChogScene extends Phaser.Scene {
       shield,
       maxShield: shield,
       shieldSprite: shieldGlow,
-      speed: 135,
+      speed: this.currentLevel === 3 ? 155 : this.currentLevel === 2 ? 145 : 135,
       scoreValue: 1800,
       slowTimer: 0,
       frozenTimer: 0,
@@ -2223,9 +2236,9 @@ export class ChogScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    const levelMod = this.currentLevel === 3 ? 1.3 : 1.0;
-    const hp = Math.round(1050 * this.configData.difficulty.difficultyMultiplier * levelMod);
-    const shield = Math.round(450 * this.configData.difficulty.difficultyMultiplier * levelMod);
+    const levelMod = this.currentLevel === 3 ? 1.5 : 1.0;
+    const hp = Math.round(1200 * this.configData.difficulty.difficultyMultiplier * levelMod);
+    const shield = Math.round(550 * this.configData.difficulty.difficultyMultiplier * levelMod);
 
     const enemy: Enemy = {
       sprite: container,
@@ -2235,7 +2248,7 @@ export class ChogScene extends Phaser.Scene {
       shield,
       maxShield: shield,
       shieldSprite: shieldGlow,
-      speed: 80,
+      speed: this.currentLevel === 3 ? 95 : 80,
       scoreValue: 2200,
       slowTimer: 0,
       frozenTimer: 0,
@@ -2305,8 +2318,8 @@ export class ChogScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    const baseHp = isOmega ? 3400 : isBeta ? 2300 : 1350;
-    const baseShield = isOmega ? 1500 : isBeta ? 1000 : 600;
+    const baseHp = isOmega ? 4600 : isBeta ? 2800 : 1500;
+    const baseShield = isOmega ? 2200 : isBeta ? 1300 : 650;
 
     const bossHp = Math.round(baseHp * this.configData.difficulty.difficultyMultiplier);
     const bossShield = Math.round(baseShield * this.configData.difficulty.difficultyMultiplier);
@@ -2319,8 +2332,8 @@ export class ChogScene extends Phaser.Scene {
       shield: bossShield,
       maxShield: bossShield,
       shieldSprite: shieldGlow,
-      speed: isOmega ? 96 : isBeta ? 88 : 80,
-      scoreValue: isOmega ? 5000 : isBeta ? 3500 : 2500,
+      speed: isOmega ? 112 : isBeta ? 96 : 82,
+      scoreValue: isOmega ? 6000 : isBeta ? 4000 : 2500,
       slowTimer: 0,
       frozenTimer: 0,
       isBoss: true,
@@ -2432,7 +2445,7 @@ export class ChogScene extends Phaser.Scene {
           const distToBeam = Math.hypot(this.playerContainer.x - closest.x, this.playerContainer.y - closest.y);
 
           if (distToBeam < 16 && !this.isShielded) {
-            this.takeDamage(18);
+            this.takeDamage(24);
             this.spawnParticleRing(this.playerContainer.x, this.playerContainer.y, 0x06b6d4, 10);
           }
         });
@@ -2450,16 +2463,16 @@ export class ChogScene extends Phaser.Scene {
     soundSynth.triggerHaptic(75);
     this.callbacks.onChaosAlert('🚀 DOOMSDAY MISSILE SALVO LOCKING ON!');
 
-    const count = 5;
+    const count = 7;
     for (let i = 0; i < count; i++) {
-      this.time.delayedCall(i * 140, () => {
+      this.time.delayedCall(i * 130, () => {
         if (!boss.sprite.active) return;
-        const missile = this.add.circle(boss.sprite.x, boss.sprite.y, 6, 0xef4444);
+        const missile = this.add.circle(boss.sprite.x, boss.sprite.y, 7, 0xef4444);
         missile.setStrokeStyle(1.5, 0xfacc15);
 
         let missileLife = 0;
-        let mvx = (Math.random() - 0.5) * 150;
-        let mvy = 60 + Math.random() * 80;
+        let mvx = (Math.random() - 0.5) * 160;
+        let mvy = 60 + Math.random() * 90;
 
         const updateEvent = this.time.addEvent({
           delay: 35,
@@ -2477,12 +2490,12 @@ export class ChogScene extends Phaser.Scene {
             const targetDist = Math.hypot(targetDx, targetDy);
 
             if (targetDist > 10) {
-              mvx += (targetDx / targetDist) * 320 * 0.035;
-              mvy += (targetDy / targetDist) * 320 * 0.035;
+              mvx += (targetDx / targetDist) * 350 * 0.035;
+              mvy += (targetDy / targetDist) * 350 * 0.035;
             }
 
             const curSpeed = Math.hypot(mvx, mvy);
-            const maxSpeed = 220;
+            const maxSpeed = 250;
             if (curSpeed > maxSpeed) {
               mvx = (mvx / curSpeed) * maxSpeed;
               mvy = (mvy / curSpeed) * maxSpeed;
@@ -2497,7 +2510,7 @@ export class ChogScene extends Phaser.Scene {
               soundSynth.playExplosion(false);
               this.spawnParticleRing(missile.x, missile.y, 0xef4444, 16);
               if (!this.isShielded) {
-                this.takeDamage(18);
+                this.takeDamage(26);
               }
               missile.destroy();
             } else if (missileLife >= 2.5) {
@@ -2553,11 +2566,11 @@ export class ChogScene extends Phaser.Scene {
         this.cameras.main.shake(400, 0.025);
         this.spawnParticleRing(cx, cy, 0xfacc15, 36);
 
-        // 16-bullet nova burst
-        const bulletCount = 16;
+        // 20-bullet nova burst
+        const bulletCount = 20;
         for (let b = 0; b < bulletCount; b++) {
           const bAngle = (b / bulletCount) * Math.PI * 2;
-          const bullet = this.add.circle(cx, cy, 6, 0xef4444);
+          const bullet = this.add.circle(cx, cy, 7, 0xef4444);
           bullet.setStrokeStyle(1.5, 0xffffff);
 
           this.hazards.push({
@@ -2570,13 +2583,13 @@ export class ChogScene extends Phaser.Scene {
 
           this.tweens.add({
             targets: bullet,
-            x: cx + Math.cos(bAngle) * 450,
-            y: cy + Math.sin(bAngle) * 450,
-            duration: 2000,
+            x: cx + Math.cos(bAngle) * 480,
+            y: cy + Math.sin(bAngle) * 480,
+            duration: 1900,
             onUpdate: () => {
               const d = Math.hypot(this.playerContainer.x - bullet.x, this.playerContainer.y - bullet.y);
               if (d < 18 && !this.isShielded) {
-                this.takeDamage(16);
+                this.takeDamage(30);
                 bullet.destroy();
               }
             },
@@ -2734,30 +2747,52 @@ export class ChogScene extends Phaser.Scene {
   private triggerHyperSurge() {
     this.hyperSurgeTriggered = true;
     soundSynth.playBossAlert();
-    this.cameras.main.shake(400, 0.02);
-    this.callbacks.onComboAlert?.('⚠️ HYPER SURGE: FINAL 10 SECONDS!');
+    this.cameras.main.shake(400, 0.02 + this.currentLevel * 0.005);
+    const rushSpeedPercent = this.currentLevel === 1 ? '20%' : this.currentLevel === 2 ? '35%' : '50%';
+    this.callbacks.onComboAlert?.(`⚠️ SECTOR ${this.currentLevel} SURGE: +${rushSpeedPercent} ENEMY OVERDRIVE!`);
 
     const { width, height } = this.scale;
-    for (let i = 0; i < 4; i++) {
-      const angle = (i / 4) * Math.PI * 2;
-      const x = width / 2 + Math.cos(angle) * (width * 0.45);
-      const y = height / 2 + Math.sin(angle) * (height * 0.45);
+    // Each level's rush spawns more hostiles: Sector 1 (6 wasps), Sector 2 (8 wasps + brutes), Sector 3 (12 wasps + brutes)
+    const count = this.currentLevel === 1 ? 6 : this.currentLevel === 2 ? 8 : 12;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const x = width / 2 + Math.cos(angle) * (width * 0.46);
+      const y = height / 2 + Math.sin(angle) * (height * 0.46);
 
+      const isBrute = (this.currentLevel >= 2 && i % 3 === 0);
       const container = this.add.container(x, y);
-      const waspBody = this.add.triangle(0, 0, 0, -12, 12, 12, -12, 12, 0xef4444);
-      waspBody.setStrokeStyle(1.5, 0xffffff);
-      container.add(waspBody);
 
-      this.enemies.push({
-        sprite: container,
-        type: 'wasp',
-        hp: 18,
-        maxHp: 18,
-        speed: 105,
-        scoreValue: 400,
-        slowTimer: 0,
-        frozenTimer: 0,
-      });
+      if (isBrute) {
+        const bruteBody = this.add.rectangle(0, 0, 28, 28, 0xef4444);
+        bruteBody.setStrokeStyle(2, 0xfacc15);
+        container.add(bruteBody);
+
+        this.enemies.push({
+          sprite: container,
+          type: 'brute',
+          hp: 45 * this.currentLevel,
+          maxHp: 45 * this.currentLevel,
+          speed: 65,
+          scoreValue: 500,
+          slowTimer: 0,
+          frozenTimer: 0,
+        });
+      } else {
+        const waspBody = this.add.triangle(0, 0, 0, -12, 12, 12, -12, 12, 0xef4444);
+        waspBody.setStrokeStyle(1.5, 0xffffff);
+        container.add(waspBody);
+
+        this.enemies.push({
+          sprite: container,
+          type: 'wasp',
+          hp: 16 + this.currentLevel * 4,
+          maxHp: 16 + this.currentLevel * 4,
+          speed: 110 + this.currentLevel * 10,
+          scoreValue: 400,
+          slowTimer: 0,
+          frozenTimer: 0,
+        });
+      }
 
       this.spawnParticleRing(x, y, 0xef4444, 10);
     }
@@ -2801,10 +2836,13 @@ export class ChogScene extends Phaser.Scene {
 
   private triggerBossRadialBarrage(bx: number, by: number) {
     soundSynth.playLaser(true);
-    const count = 10;
+    const count = this.currentLevel === 3 ? 18 : this.currentLevel === 2 ? 14 : 10;
+    const bulletDmg = this.currentLevel === 3 ? 30 : this.currentLevel === 2 ? 24 : 18;
+    const bulletDist = this.currentLevel === 3 ? 620 : this.currentLevel === 2 ? 560 : 500;
+    const bulletDuration = this.currentLevel === 3 ? 1800 : this.currentLevel === 2 ? 2100 : 2500;
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2;
-      const bullet = this.add.circle(bx, by, 7, 0xef4444);
+      const bullet = this.add.circle(bx, by, this.currentLevel === 3 ? 9 : 7, 0xef4444);
       bullet.setStrokeStyle(1.5, 0xffffff);
 
       this.hazards.push({
@@ -2817,13 +2855,13 @@ export class ChogScene extends Phaser.Scene {
 
       this.tweens.add({
         targets: bullet,
-        x: bx + Math.cos(angle) * 500,
-        y: by + Math.sin(angle) * 500,
-        duration: 2500,
+        x: bx + Math.cos(angle) * bulletDist,
+        y: by + Math.sin(angle) * bulletDist,
+        duration: bulletDuration,
         onUpdate: () => {
           const dist = Math.hypot(this.playerContainer.x - bullet.x, this.playerContainer.y - bullet.y);
           if (dist < 22 && !this.isShielded) {
-            this.takeDamage(18);
+            this.takeDamage(bulletDmg);
             bullet.destroy();
           }
         },
