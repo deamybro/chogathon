@@ -49,26 +49,54 @@ export default function VaultDeployerPage() {
 
   // 1-Click In-App Deployment via Connected Wallet
   const handleDeployVault = async () => {
-    if (!isConnected || typeof window === 'undefined' || !(window as any).ethereum) {
+    if (!isConnected) {
+      setIsWalletModalOpen(true);
+      return;
+    }
+
+    if (typeof window === 'undefined' || !(window as any).ethereum) {
+      alert('MetaMask, Rabby, or Phantom is required to deploy a live smart contract to Monad. Please install a browser wallet extension.');
+      return;
+    }
+
+    if (walletAddress && walletAddress.startsWith('0xChog969')) {
+      alert('You are currently using the simulated Hackathon Judge Pass. Please connect your real MetaMask or Rabby wallet to deploy the live contract.');
       setIsWalletModalOpen(true);
       return;
     }
 
     try {
       setIsDeploying(true);
-      setStatusMessage('Preparing transaction for MetaMask...');
+      setStatusMessage('Preparing transaction for wallet...');
       soundSynth.playLaser(true);
 
       const ethereum = (window as any).ethereum;
 
-      // 1. Ensure Monad Testnet
+      // 1. Ensure Monad Testnet (Chain ID 10143)
       try {
         await ethereum.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: MONAD_TESTNET.chainIdHex }],
         });
-      } catch (err) {
-        console.warn('Network switch warning:', err);
+      } catch (err: any) {
+        if (err?.code === 4902 || err?.data?.originalError?.code === 4902) {
+          try {
+            await ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [
+                {
+                  chainId: MONAD_TESTNET.chainIdHex,
+                  chainName: MONAD_TESTNET.name,
+                  rpcUrls: [MONAD_TESTNET.rpcUrl],
+                  nativeCurrency: MONAD_TESTNET.currency,
+                  blockExplorerUrls: [MONAD_TESTNET.blockExplorer],
+                },
+              ],
+            });
+          } catch (addErr) {
+            console.warn('Failed to add Monad Testnet to wallet', addErr);
+          }
+        }
       }
 
       // 2. Encode constructor argument: address _chogToken (left-padded 32 bytes)
@@ -82,7 +110,7 @@ export default function VaultDeployerPage() {
       const encodedArg = cleanAddress.padStart(64, '0');
       const deployData = `${VAULT_BYTECODE}${encodedArg}`;
 
-      setStatusMessage('Please confirm contract deployment in your wallet...');
+      setStatusMessage('Please confirm contract deployment in your wallet popup...');
 
       // 3. Send deployment transaction
       const txHash = await ethereum.request({

@@ -68,7 +68,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setClaimedBountyBalance(getWalletClaimedChog(address));
   }, []);
 
-  // Re-hydrate saved connection on mount
+  // Disconnect wallet
+  const disconnectWallet = useCallback(() => {
+    setWalletAddress(null);
+    setUserChogs([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(LOCAL_STORAGE_WALLET_KEY);
+    }
+  }, []);
+
+  // Re-hydrate saved connection on mount & register EVM event listeners
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(LOCAL_STORAGE_WALLET_KEY);
@@ -76,8 +85,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setWalletAddress(saved);
         refreshWalletData(saved);
       }
+
+      if ((window as any).ethereum) {
+        const ethereum = (window as any).ethereum;
+        const handleAccounts = (accounts: string[]) => {
+          if (accounts && accounts.length > 0) {
+            setWalletAddress(accounts[0]);
+            localStorage.setItem(LOCAL_STORAGE_WALLET_KEY, accounts[0]);
+            refreshWalletData(accounts[0]);
+          } else {
+            disconnectWallet();
+          }
+        };
+
+        ethereum.on?.('accountsChanged', handleAccounts);
+
+        return () => {
+          ethereum.removeListener?.('accountsChanged', handleAccounts);
+        };
+      }
     }
-  }, [refreshWalletData]);
+  }, [refreshWalletData, disconnectWallet]);
 
   // Connect wallet
   const connectWallet = useCallback(async (type: 'injected' | 'judge_pass' = 'injected'): Promise<boolean> => {
@@ -146,14 +174,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     return false;
   }, [refreshWalletData]);
-
-  const disconnectWallet = useCallback(() => {
-    setWalletAddress(null);
-    setUserChogs([]);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(LOCAL_STORAGE_WALLET_KEY);
-    }
-  }, []);
 
   // Mint Lucky Trial Chog
   const mintTrialChog = useCallback(async () => {
