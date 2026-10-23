@@ -242,6 +242,7 @@ export default function PlayClient({
 
   // Starter Augment Spec state (chosen before run starts)
   const [selectedStarterAugment, setSelectedStarterAugment] = useState<StarterAugmentType>('attack_speed');
+  const [showMobileDetails, setShowMobileDetails] = useState(false);
 
   // Start run
   const handleStartRun = useCallback((aug?: StarterAugmentType) => {
@@ -517,7 +518,7 @@ export default function PlayClient({
   const hpPercent = Math.max(0, Math.min(100, (hp / maxHp) * 100));
 
   return (
-    <div className="mx-auto max-w-7xl px-3 py-6 sm:px-6">
+    <div className="mx-auto max-w-7xl px-1 py-1 sm:px-6 sm:py-6">
       <ArcadeCabinetFrame
         cabinetStatus={cabinetStatus}
         bestScore={bestScore}
@@ -525,7 +526,7 @@ export default function PlayClient({
       >
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800 bg-zinc-950">
           {/* LEFT PANEL: NFT ART & SIGNATURE SKILL (col-span-3) */}
-          <div className="order-2 lg:order-1 p-3.5 sm:p-4 lg:col-span-3 flex flex-col justify-between space-y-4">
+          <div className={`${hasStarted && !showMobileDetails ? 'hidden lg:flex' : 'flex'} order-2 lg:order-1 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-4`}>
             <div>
               {/* Token Header */}
               <div className="flex items-center justify-between">
@@ -712,11 +713,14 @@ export default function PlayClient({
                     )}
                   </div>
 
-                  {/* Sector Timer & Starter Perk */}
+                  {/* Sector Timer, Score & Starter Perk */}
                   <div className="flex items-center space-x-2 font-mono text-[10px] sm:text-xs">
                     <span className="text-zinc-500">S{levelInfo.current}:</span>
                     <span className={`font-black ${timeRemaining <= 10 ? 'text-red-400 animate-pulse' : 'text-purple-300'}`}>
                       {timeRemaining}s
+                    </span>
+                    <span className="font-black text-amber-300">
+                      {score.toLocaleString()} PTS
                     </span>
                     {selectedStarterAugment && (
                       <span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${STARTER_AUGMENTS[selectedStarterAugment].bgBadge}`}>
@@ -988,11 +992,24 @@ export default function PlayClient({
                 </div>
               </div>
             )}
+            {/* Mobile In-Game Utility Bar */}
+            {hasStarted && !runResults && (
+              <div className="flex lg:hidden items-center justify-between px-3 py-1.5 border-t border-zinc-800 bg-zinc-950/90 font-mono text-[10px] text-zinc-400">
+                <span className="text-emerald-400/80">Arcade Mobile Mode Active</span>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileDetails(!showMobileDetails)}
+                  className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-zinc-300 font-bold hover:bg-zinc-800 transition cursor-pointer"
+                >
+                  {showMobileDetails ? '▲ Hide Details' : '▼ Cartridge DNA & Stats'}
+                </button>
+              </div>
+            )}
             </div>
           </div>
 
           {/* RIGHT PANEL: HUD, BONUS SKILLS & RUN CONTROLS (col-span-3) */}
-          <div className="order-3 lg:order-3 p-3.5 sm:p-4 lg:col-span-3 flex flex-col justify-between space-y-3">
+          <div className={`${hasStarted && !showMobileDetails ? 'hidden lg:flex' : 'flex'} order-3 lg:order-3 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-3 pb-32 lg:pb-0`}>
             <div className="space-y-3">
               {/* Multi-Level Sector Escalation Block */}
               <div className="rounded-xl border border-purple-500/40 bg-purple-950/20 p-2.5">
@@ -1298,7 +1315,7 @@ export default function PlayClient({
           </div>
         </div>
 
-        {/* MOBILE ON-SCREEN TOUCH CONTROLS */}
+        {/* MOBILE ON-SCREEN TOUCH CONTROLS (Fixed floating overlay on phones) */}
         <MobileControls
           onMove={handleMobileMove}
           onAbility={handleTriggerAbility}
@@ -1310,6 +1327,7 @@ export default function PlayClient({
           autoAimEnabled={autoAim.enabled}
           isAimScrambled={autoAim.isScrambled}
           onToggleAutoAim={handleToggleAutoAim}
+          visible={hasStarted && !runResults}
         />
       </ArcadeCabinetFrame>
 

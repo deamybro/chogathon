@@ -1576,14 +1576,35 @@ export class ChogScene extends Phaser.Scene {
     this.playerContainer.x = Phaser.Math.Clamp(this.playerContainer.x, pad, this.scale.width - pad);
     this.playerContainer.y = Phaser.Math.Clamp(this.playerContainer.y, pad, this.scale.height - pad);
 
-    if (this.isTouchAiming) {
+    const canAutoAim = this.autoAimEnabled && !this.isAimScrambled;
+    let autoTarget: Enemy | null = null;
+    if (canAutoAim && this.enemies.length > 0) {
+      let nearestDist = Infinity;
+      for (const e of this.enemies) {
+        const d = Math.hypot(e.sprite.x - this.playerContainer.x, e.sprite.y - this.playerContainer.y);
+        if (d < nearestDist) {
+          nearestDist = d;
+          autoTarget = e;
+        }
+      }
+    }
+
+    if (autoTarget) {
+      this.aimAngle = Math.atan2(
+        autoTarget.sprite.y - this.playerContainer.y,
+        autoTarget.sprite.x - this.playerContainer.x
+      );
+    } else if (Math.hypot(this.touchMoveX, this.touchMoveY) > 0.1) {
+      // Face movement direction on mobile joystick steering
+      this.aimAngle = Math.atan2(this.touchMoveY, this.touchMoveX);
+    } else if (this.isTouchAiming) {
       this.aimAngle = Math.atan2(
         this.touchAimY - this.playerContainer.y,
         this.touchAimX - this.playerContainer.x
       );
     } else {
       const pointer = this.input.activePointer;
-      if (pointer) {
+      if (pointer && (pointer.isDown || this.sys.game.device.os.desktop)) {
         this.aimAngle = Math.atan2(
           pointer.y - this.playerContainer.y,
           pointer.x - this.playerContainer.x
@@ -1604,25 +1625,7 @@ export class ChogScene extends Phaser.Scene {
     if (time - this.lastFireTime >= effectiveRate) {
       this.lastFireTime = time;
 
-      let fireAngle = this.aimAngle;
-      const canAutoAim = this.autoAimEnabled && !this.isAimScrambled;
-      if (canAutoAim && this.enemies.length > 0 && !this.input.activePointer.isDown && !this.isTouchAiming) {
-        let nearestDist = Infinity;
-        let nearestEnemy: Enemy | null = null;
-        for (const e of this.enemies) {
-          const d = Math.hypot(e.sprite.x - this.playerContainer.x, e.sprite.y - this.playerContainer.y);
-          if (d < nearestDist) {
-            nearestDist = d;
-            nearestEnemy = e;
-          }
-        }
-        if (nearestEnemy) {
-          fireAngle = Math.atan2(
-            nearestEnemy.sprite.y - this.playerContainer.y,
-            nearestEnemy.sprite.x - this.playerContainer.x
-          );
-        }
-      }
+      const fireAngle = this.aimAngle;
 
       const starterCritBonus = this.starterPerk === 'damage' ? 0.10 : 0;
       const tierCritBonus = this.configData.difficulty?.playerCritBonus || 0;
