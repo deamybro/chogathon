@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Chog, CartridgeBattery } from '@/types/chog';
-import { MONAD_TESTNET } from '@/lib/web3/monadChain';
+import { MONAD_MAINNET, MONAD_TESTNET } from '@/lib/web3/monadChain';
 import {
   getCartridgeBattery,
   consumeCartridgeRun,
@@ -131,34 +131,46 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setWalletAddress(address);
         localStorage.setItem(LOCAL_STORAGE_WALLET_KEY, address);
 
-        // Attempt Monad Testnet switch
+        // Check if on Monad (Mainnet or Testnet)
         try {
-          await ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: MONAD_TESTNET.chainIdHex }],
-          });
-          setIsMonadNetwork(true);
-        } catch (switchError: any) {
-          // Chain not added to metamask, attempt add
-          if (switchError.code === 4902) {
+          const currentChainHex = await ethereum.request({ method: 'eth_chainId' });
+          const isMainnet = currentChainHex === MONAD_MAINNET.chainIdHex || parseInt(currentChainHex, 16) === MONAD_MAINNET.chainId;
+          const isTestnet = currentChainHex === MONAD_TESTNET.chainIdHex || parseInt(currentChainHex, 16) === MONAD_TESTNET.chainId;
+
+          // If not on Monad, offer switch to Monad Mainnet
+          if (!isMainnet && !isTestnet) {
             try {
               await ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [
-                  {
-                    chainId: MONAD_TESTNET.chainIdHex,
-                    chainName: MONAD_TESTNET.name,
-                    rpcUrls: [MONAD_TESTNET.rpcUrl],
-                    nativeCurrency: MONAD_TESTNET.currency,
-                    blockExplorerUrls: [MONAD_TESTNET.blockExplorer],
-                  },
-                ],
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: MONAD_MAINNET.chainIdHex }],
               });
               setIsMonadNetwork(true);
-            } catch (addError) {
-              console.warn('Failed to add Monad network', addError);
+            } catch (switchError: any) {
+              if (switchError.code === 4902) {
+                try {
+                  await ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [
+                      {
+                        chainId: MONAD_MAINNET.chainIdHex,
+                        chainName: MONAD_MAINNET.name,
+                        rpcUrls: [MONAD_MAINNET.rpcUrl],
+                        nativeCurrency: MONAD_MAINNET.currency,
+                        blockExplorerUrls: [MONAD_MAINNET.blockExplorer],
+                      },
+                    ],
+                  });
+                  setIsMonadNetwork(true);
+                } catch (addError) {
+                  console.warn('Failed to add Monad Mainnet', addError);
+                }
+              }
             }
+          } else {
+            setIsMonadNetwork(true);
           }
+        } catch (chainErr) {
+          console.warn('Network check warning:', chainErr);
         }
 
         refreshWalletData(address);
