@@ -100,11 +100,15 @@ export default function Navbar() {
             <span className="hidden sm:inline">Browse</span>
           </Link>
 
-          {/* 400 $CHOG Bounty Pool Pill */}
-          <div className="hidden lg:flex items-center space-x-1.5 rounded-full border border-amber-500/40 bg-amber-950/20 px-2.5 py-1 font-mono text-[10px] text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.15)]">
+          {/* 400 $CHOG Bounty Pool Pill (Links to Vault Deployer & Manager) */}
+          <Link
+            href="/vault"
+            className="flex items-center space-x-1.5 rounded-full border border-amber-500/40 bg-amber-950/20 px-2.5 py-1 font-mono text-[10px] text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.15)] hover:border-amber-400 hover:bg-amber-950/40 transition cursor-pointer"
+            title="Open Chog Bounty Vault Deployer"
+          >
             <Coins className="h-3 w-3 text-amber-400 animate-pulse" />
             <span className="font-bold">400 $CHOG POOL</span>
-          </div>
+          </Link>
 
           {/* Roll Free Trial Cartridge Button */}
           <button
