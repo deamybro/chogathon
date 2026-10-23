@@ -5,15 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { DEMO_CHOGS } from '@/lib/demoChogs';
 import ChogCard from '@/components/ChogCard';
-import DemoVideoModal from '@/components/DemoVideoModal';
 import { useWallet } from '@/context/WalletContext';
-import { Play, Compass, ArrowRight, Zap, Shield, Sparkles, Terminal, Flame, Eye, Layers, Dna, BatteryCharging, Coins, Film } from 'lucide-react';
+import { Play, Compass, ArrowRight, Zap, Shield, Sparkles, Terminal, Flame, Eye, Layers, Dna, BatteryCharging, Coins } from 'lucide-react';
 
 export default function HomePage() {
   const router = useRouter();
   const { isConnected, setIsGachaModalOpen, setIsWalletModalOpen, userChogs } = useWallet();
   const [inputTokenId, setInputTokenId] = useState('');
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const featuredChogs = DEMO_CHOGS.slice(0, 3); // 969, 404, 77
 
   const handleQuickPlay = (e: React.FormEvent) => {
@@ -88,14 +86,6 @@ export default function HomePage() {
               <Compass className="h-4 w-4" />
               <span>BROWSE ALL</span>
             </Link>
-
-            <button
-              onClick={() => setIsVideoModalOpen(true)}
-              className="flex w-full sm:w-auto items-center justify-center space-x-2 rounded-xl border border-emerald-500/50 bg-emerald-950/30 px-5 py-3.5 font-mono text-sm font-bold text-emerald-300 shadow-[0_0_20px_rgba(34,197,94,0.2)] transition hover:bg-emerald-500/20 hover:text-white cursor-pointer"
-            >
-              <Film className="h-4 w-4 text-emerald-400" />
-              <span>WATCH DEMO (64s)</span>
-            </button>
           </div>
 
           {/* Quick Token Jump Bar */}
@@ -315,12 +305,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Demo Video Modal */}
-      <DemoVideoModal
-        isOpen={isVideoModalOpen}
-        onClose={() => setIsVideoModalOpen(false)}
-      />
     </div>
   );
 }
