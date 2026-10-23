@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { DEMO_CHOGS } from '@/lib/demoChogs';
 import ChogCard from '@/components/ChogCard';
-import { Play, Compass, ArrowRight, Zap, Shield, Sparkles, Terminal, Flame, Eye, Layers } from 'lucide-react';
+import { useWallet } from '@/context/WalletContext';
+import { Play, Compass, ArrowRight, Zap, Shield, Sparkles, Terminal, Flame, Eye, Layers, Dna, BatteryCharging, Coins } from 'lucide-react';
 
 export default function HomePage() {
   const router = useRouter();
+  const { isConnected, setIsGachaModalOpen, setIsWalletModalOpen, userChogs } = useWallet();
   const [inputTokenId, setInputTokenId] = useState('');
   const featuredChogs = DEMO_CHOGS.slice(0, 3); // 969, 404, 77
 
@@ -55,20 +57,34 @@ export default function HomePage() {
 
           {/* CTAs */}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={() => {
+                if (!isConnected) {
+                  setIsWalletModalOpen(true);
+                } else {
+                  setIsGachaModalOpen(true);
+                }
+              }}
+              className="flex w-full sm:w-auto items-center justify-center space-x-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3.5 font-mono text-sm font-black text-white shadow-[0_0_25px_rgba(168,85,247,0.5)] transition hover:brightness-110 active:scale-95 cursor-pointer"
+            >
+              <Dna className="h-4 w-4" />
+              <span>ROLL FREE TRIAL CARTRIDGE (7 RUNS)</span>
+            </button>
+
             <Link
               href="/play/969"
-              className="flex w-full sm:w-auto items-center justify-center space-x-2 rounded-xl bg-emerald-500 px-6 py-3.5 font-mono text-sm font-bold text-black shadow-[0_0_25px_rgba(34,197,94,0.45)] transition hover:bg-emerald-400 active:scale-95"
+              className="flex w-full sm:w-auto items-center justify-center space-x-2 rounded-xl bg-emerald-500 px-6 py-3.5 font-mono text-sm font-bold text-black shadow-[0_0_25px_rgba(34,197,94,0.45)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
             >
               <Play className="h-4 w-4 fill-current" />
-              <span>PLAY A DEMO CARTRIDGE (#969)</span>
+              <span>PLAY DEMO #969</span>
             </Link>
 
             <Link
               href="/browse"
-              className="flex w-full sm:w-auto items-center justify-center space-x-2 rounded-xl border border-zinc-700 bg-zinc-900/80 px-6 py-3.5 font-mono text-sm font-bold text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+              className="flex w-full sm:w-auto items-center justify-center space-x-2 rounded-xl border border-zinc-700 bg-zinc-900/80 px-6 py-3.5 font-mono text-sm font-bold text-zinc-200 transition hover:border-zinc-500 hover:text-white cursor-pointer"
             >
               <Compass className="h-4 w-4" />
-              <span>BROWSE BY TOKEN ID</span>
+              <span>BROWSE ALL</span>
             </Link>
           </div>
 
@@ -104,6 +120,38 @@ export default function HomePage() {
           </p>
         </div>
       </section>
+
+      {/* USER'S MINTED TRIAL CARTRIDGES (If any) */}
+      {userChogs.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pt-12 sm:px-6 w-full">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-purple-500/30 pb-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
+                <h2 className="font-mono text-2xl font-black text-white tracking-wide">
+                  YOUR TRIAL CARTRIDGES ({userChogs.length})
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-purple-300 font-mono">
+                Luck-rolled trial cartridges on Monad. Track your remaining battery before they burn!
+              </p>
+            </div>
+            <button
+              onClick={() => setIsGachaModalOpen(true)}
+              className="flex items-center space-x-1.5 rounded-lg border border-purple-500/50 bg-purple-950/30 px-3 py-1.5 font-mono text-xs font-bold text-purple-300 hover:bg-purple-950/50 transition cursor-pointer"
+            >
+              <Dna className="h-3.5 w-3.5 text-purple-400" />
+              <span>ROLL ANOTHER TRIAL</span>
+            </button>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            {userChogs.map((chog) => (
+              <ChogCard key={chog.tokenId} chog={chog} featured={false} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* FEATURED DEMO CARTRIDGES */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 w-full">

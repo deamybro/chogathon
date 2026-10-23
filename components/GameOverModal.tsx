@@ -7,6 +7,7 @@ import { getCabinetStatus } from '@/lib/storage';
 import { Trophy, Skull, Share2, RotateCcw, Compass, Check, Sparkles, Coins, Wallet } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { soundSynth } from '@/game/soundEffects';
+import { useWallet } from '@/context/WalletContext';
 
 interface GameOverModalProps {
   results: RunResults;
@@ -14,6 +15,7 @@ interface GameOverModalProps {
 }
 
 export default function GameOverModal({ results, onRestart }: GameOverModalProps) {
+  const { shortAddress, claimBounty } = useWallet();
   const [copied, setCopied] = useState(false);
   const [claimStatus, setClaimStatus] = useState<'idle' | 'claiming' | 'claimed'>('idle');
   const cabinetStatus = getCabinetStatus(results.skullCount);
@@ -58,6 +60,7 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
 
     setTimeout(() => {
       setClaimStatus('claimed');
+      claimBounty(totalChogReward);
       soundSynth.playVictory();
       try {
         confetti({
@@ -129,7 +132,7 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
             {claimStatus === 'claimed' ? (
               <>
                 <Check className="h-3.5 w-3.5 text-emerald-400" />
-                <span>CLAIMED TO WALLET (+{totalChogReward.toFixed(3)} $CHOG)</span>
+                <span>CLAIMED TO {shortAddress || 'WALLET'} (+{totalChogReward.toFixed(3)} $CHOG)</span>
               </>
             ) : claimStatus === 'claiming' ? (
               <>
@@ -139,7 +142,7 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
             ) : (
               <>
                 <Wallet className="h-3.5 w-3.5" />
-                <span>CLAIM {totalChogReward.toFixed(3)} $CHOG TO WALLET</span>
+                <span>CLAIM {totalChogReward.toFixed(3)} $CHOG TO {shortAddress || 'WALLET'}</span>
               </>
             )}
           </button>

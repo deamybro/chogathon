@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Chog } from '@/types/chog';
 import { deriveGameConfig } from '@/game/traitMapping';
-import { Play, Sparkles, AlertCircle } from 'lucide-react';
+import { getCartridgeBattery } from '@/lib/web3/batteryStorage';
+import { Play, Sparkles, AlertCircle, BatteryCharging, Flame } from 'lucide-react';
 
 interface ChogCardProps {
   chog: Chog;
@@ -14,6 +15,7 @@ interface ChogCardProps {
 export default function ChogCard({ chog, featured = false }: ChogCardProps) {
   const [imgError, setImgError] = useState(false);
   const config = deriveGameConfig(chog);
+  const battery = chog.battery || getCartridgeBattery(chog.tokenId);
 
   return (
     <div
@@ -28,10 +30,31 @@ export default function ChogCard({ chog, featured = false }: ChogCardProps) {
         <span className="rounded-md border border-emerald-500/40 bg-black/80 px-2 py-0.5 font-mono text-xs font-bold text-emerald-400 backdrop-blur-md">
           #{chog.tokenId}
         </span>
-        {chog.isFallback && (
-          <span className="flex items-center space-x-1 rounded-md border border-amber-500/40 bg-black/80 px-2 py-0.5 text-[10px] font-semibold text-amber-300 backdrop-blur-md">
-            <AlertCircle className="h-3 w-3" />
-            <span>Demo Cartridge</span>
+        {battery.isTrial ? (
+          <span
+            className={`flex items-center space-x-1 rounded-md border px-2 py-0.5 text-[10px] font-mono font-bold backdrop-blur-md ${
+              battery.isBurned
+                ? 'border-rose-500/60 bg-rose-950/80 text-rose-300'
+                : battery.runsRemaining <= 2
+                ? 'border-amber-500/60 bg-amber-950/80 text-amber-300'
+                : 'border-emerald-500/50 bg-black/80 text-emerald-400'
+            }`}
+          >
+            {battery.isBurned ? (
+              <>
+                <Flame className="h-3 w-3 text-rose-400" />
+                <span>0/7 (MELTED)</span>
+              </>
+            ) : (
+              <>
+                <BatteryCharging className="h-3 w-3" />
+                <span>{battery.runsRemaining}/7 RUNS</span>
+              </>
+            )}
+          </span>
+        ) : (
+          <span className="flex items-center space-x-1 rounded-md border border-amber-500/50 bg-black/80 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-300 backdrop-blur-md">
+            <span>PERMANENT ♾️</span>
           </span>
         )}
       </div>

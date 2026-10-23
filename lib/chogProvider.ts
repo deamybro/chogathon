@@ -1,6 +1,7 @@
 import { Chog, ChogTraits } from '@/types/chog';
 import { DEMO_CHOGS, generateChogSvg } from './demoChogs';
 import { SeededRandom } from '@/game/seededRandom';
+import { getCartridgeBattery } from './web3/batteryStorage';
 
 export interface ChogProvider {
   getChog(tokenId: number): Promise<Chog>;
@@ -90,6 +91,7 @@ export function generateProceduralChog(tokenId: number, isFallback = true): Chog
       tier: tier,
     },
     isFallback,
+    battery: getCartridgeBattery(tokenId),
   };
 }
 

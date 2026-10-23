@@ -20,6 +20,7 @@ import GameOverModal from '@/components/GameOverModal';
 import MobileControls from '@/components/MobileControls';
 import StoryDialogueModal from '@/components/StoryDialogueModal';
 import type { PhaserGameHandle, StarterAugmentType } from '@/components/PhaserGame';
+import { useWallet } from '@/context/WalletContext';
 import {
   Play,
   RotateCcw,
@@ -46,6 +47,8 @@ import {
   Crosshair,
   Layers,
   Flame,
+  BatteryCharging,
+  Wallet,
 } from 'lucide-react';
 
 export const STARTER_AUGMENTS: Record<
@@ -219,6 +222,19 @@ export default function PlayClient({
     return deriveGameConfig(initialChog, dailyDream);
   }, [initialChog, dailyDream]);
 
+  // Web3 & Monad Battery Context
+  const {
+    isConnected,
+    walletAddress,
+    setIsWalletModalOpen,
+    getBattery,
+    consumeRun,
+    setIsDepletedModalOpen,
+    setDepletedTokenId,
+  } = useWallet();
+
+  const battery = initialChog ? getBattery(initialChog.tokenId) : null;
+
   // Story Mission Dialogue state
   const [showDialogue, setShowDialogue] = useState(false);
   const [dialogueSector, setDialogueSector] = useState(1);
@@ -238,12 +254,31 @@ export default function PlayClient({
 
   // Launch button triggers Sector 1 pre-mission dialogue
   const handleLaunchClick = useCallback((aug?: StarterAugmentType) => {
+    // 1. Mandatory Wallet Connection check
+    if (!isConnected) {
+      soundSynth.playLaser(false);
+      setIsWalletModalOpen(true);
+      return;
+    }
+
+    // 2. Battery / Durability limit check
+    if (initialChog) {
+      const b = getBattery(initialChog.tokenId);
+      if (b.isTrial && (b.isBurned || b.runsRemaining <= 0)) {
+        setDepletedTokenId(initialChog.tokenId);
+        setIsDepletedModalOpen(true);
+        return;
+      }
+      // Deduct 1 run from battery
+      consumeRun(initialChog.tokenId);
+    }
+
     if (aug) {
       setSelectedStarterAugment(aug);
     }
     setDialogueSector(1);
     setShowDialogue(true);
-  }, []);
+  }, [isConnected, initialChog, getBattery, consumeRun, setIsWalletModalOpen, setIsDepletedModalOpen, setDepletedTokenId]);
 
   const handleDialogueComplete = useCallback(() => {
     setShowDialogue(false);
@@ -852,12 +887,83 @@ export default function PlayClient({
                     </div>
                   </div>
 
+                  {/* Cartridge Battery & Durability Banner */}
+                  <div className="mt-3.5 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/70 p-2.5 font-mono text-xs">
+                    <div className="flex items-center space-x-2">
+                      <BatteryCharging className={`h-4 w-4 ${battery?.isBurned ? 'text-rose-500' : 'text-emerald-400'}`} />
+                      <span className="text-[11px] font-bold text-zinc-300">
+                        {battery?.isTrial ? 'Trial Battery:' : 'Cartridge Class:'}
+                      </span>
+                    </div>
+
+                    {battery?.isTrial ? (
+                      <div className="flex items-center space-x-2">
+                        {/* 7 battery charge segment bars */}
+                        <div className="flex space-x-1">
+                          {Array.from({ length: 7 }).map((_, i) => (
+                            <span
+                              key={i}
+                              className={`h-2.5 w-1.5 rounded-sm ${
+                                i < (battery?.runsRemaining || 0)
+                                  ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]'
+                                  : 'bg-zinc-800 border border-zinc-700'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className={`font-black text-[11px] ${battery?.isBurned ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          {battery?.runsRemaining}/7 RUNS
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-amber-400 text-[11px]">
+                        PERMANENT ♾️ (UNLIMITED)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Wallet Requirement Notice */}
+                  {!isConnected && (
+                    <div
+                      onClick={() => setIsWalletModalOpen(true)}
+                      className="mt-2.5 flex items-center justify-between rounded-xl border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-[11px] font-mono text-amber-300 cursor-pointer hover:bg-amber-950/30 transition"
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <Wallet className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                        <span>Connect wallet to record on Monad & earn $CHOG</span>
+                      </div>
+                      <span className="font-bold underline text-amber-400">
+                        Connect →
+                      </span>
+                    </div>
+                  )}
+
                   <button
                     onClick={() => handleLaunchClick()}
-                    className="mt-4 flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-500 py-3.5 px-6 font-mono text-sm font-black text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] transition hover:bg-emerald-400 active:scale-95 cursor-pointer"
+                    className={`mt-3.5 flex w-full items-center justify-center space-x-2 rounded-xl py-3.5 px-6 font-mono text-sm font-black transition active:scale-95 cursor-pointer ${
+                      !isConnected
+                        ? 'bg-amber-500 text-black shadow-[0_0_25px_rgba(245,158,11,0.5)] hover:bg-amber-400'
+                        : battery?.isTrial && battery?.isBurned
+                        ? 'bg-rose-600 text-white shadow-[0_0_25px_rgba(244,63,94,0.6)] hover:bg-rose-500'
+                        : 'bg-emerald-500 text-black shadow-[0_0_25px_rgba(34,197,94,0.6)] hover:bg-emerald-400'
+                    }`}
                   >
-                    <Play className="h-5 w-5 fill-current" />
-                    <span>LAUNCH RUN ({STARTER_AUGMENTS[selectedStarterAugment].statBadge})</span>
+                    {!isConnected ? (
+                      <>
+                        <Wallet className="h-5 w-5 fill-current" />
+                        <span>CONNECT WALLET TO LAUNCH</span>
+                      </>
+                    ) : battery?.isTrial && battery?.isBurned ? (
+                      <>
+                        <Flame className="h-5 w-5 fill-current" />
+                        <span>BATTERY MELTED (0/7 RUNS) — CLICK TO RECHARGE</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-5 w-5 fill-current" />
+                        <span>LAUNCH RUN ({STARTER_AUGMENTS[selectedStarterAugment].statBadge})</span>
+                      </>
+                    )}
                   </button>
 
                   {/* Controls hint */}

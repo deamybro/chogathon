@@ -38,6 +38,13 @@ export interface ChogTraits {
   tier: string;
 }
 
+export interface CartridgeBattery {
+  maxRuns: number; // e.g. 7 for trial, Infinity for permanent
+  runsRemaining: number; // 7 -> 0
+  isBurned: boolean;
+  isTrial: boolean;
+}
+
 export interface Chog {
   tokenId: number;
   name: string;
@@ -47,6 +54,7 @@ export interface Chog {
   description?: string;
   signatureSkillName?: string;
   signatureSkillDesc?: string;
+  battery?: CartridgeBattery;
 }
 
 export interface ActiveAbilityConfig {
