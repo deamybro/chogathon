@@ -31,16 +31,91 @@ export default function VaultDeployerPage() {
 
   const [tokenAddress, setTokenAddress] = useState(MONAD_MAINNET.contracts.chogToken);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [deployedVaultAddress, setDeployedVaultAddress] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('chogathon_live_vault_address');
+      const stored = localStorage.getItem('chogathon_live_vault_address');
+      if (stored) return stored;
     }
-    return null;
+    return MONAD_MAINNET.contracts.bountyVault;
   });
   const [deployTxHash, setDeployTxHash] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [vaultBalance, setVaultBalance] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
+
+  // Fetch live Vault balance from Monad RPC
+  const fetchVaultBalance = async (vaultAddr: string) => {
+    try {
+      const paddedVault = vaultAddr.toLowerCase().replace('0x', '').padStart(64, '0');
+      const response = await fetch(targetNetwork.rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'eth_call',
+          params: [
+            {
+              to: targetNetwork.contracts.chogToken,
+              data: `0x70a08231${paddedVault}`,
+            },
+            'latest',
+          ],
+        }),
+      });
+      const data = await response.json();
+      if (data?.result) {
+        const rawWei = BigInt(data.result);
+        const divisor = BigInt('100000000000000'); // 10^14
+        const readable = Number(rawWei / divisor) / 10000;
+        setVaultBalance(readable.toLocaleString());
+      }
+    } catch (e) {
+      console.warn('Failed to fetch vault balance', e);
+    }
+  };
+
+  useEffect(() => {
+    if (deployedVaultAddress) {
+      fetchVaultBalance(deployedVaultAddress);
+      const timer = setInterval(() => fetchVaultBalance(deployedVaultAddress), 10000);
+      return () => clearInterval(timer);
+    }
+  }, [deployedVaultAddress, targetNetwork]);
+
+  const handleEmergencyWithdraw = async () => {
+    if (!isConnected) {
+      setIsWalletModalOpen(true);
+      return;
+    }
+    if (!deployedVaultAddress) return;
+    try {
+      setIsWithdrawing(true);
+      const ethereum = (window as any).ethereum;
+      if (!ethereum) {
+        alert('Web3 wallet required.');
+        return;
+      }
+      // emergencyWithdraw() selector: 0xdb2e21bc
+      const tx = await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [
+          {
+            from: walletAddress,
+            to: deployedVaultAddress,
+            data: '0xdb2e21bc',
+          },
+        ],
+      });
+      alert(`Emergency withdrawal submitted! Tx: ${tx}`);
+      fetchVaultBalance(deployedVaultAddress);
+    } catch (err: any) {
+      alert(err.message || 'Withdrawal rejected or failed.');
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
 
   const handleCopy = (text: string) => {
     if (navigator.clipboard) {
@@ -300,17 +375,29 @@ export default function VaultDeployerPage() {
               </button>
             </div>
 
-            {/* Funding Instructions */}
-            <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-950/30 p-3.5 text-xs text-amber-200 space-y-1">
-              <div className="flex items-center space-x-1.5 font-bold text-amber-400">
-                <Coins className="h-4 w-4" />
-                <span>Next Step: Fund Your Vault</span>
+            {/* Live Balance Card */}
+            <div className="mt-4 rounded-xl border border-emerald-500/40 bg-zinc-950 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wider text-zinc-400 font-bold">Live Vault Balance</span>
+                <span className="inline-flex items-center space-x-1.5 text-xs text-emerald-400">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>On-Chain Verified</span>
+                </span>
               </div>
-              <p className="font-sans text-[11px] leading-relaxed">
-                Send your <strong>400 $CHOG</strong> from your personal wallet on {targetNetwork.name} to your Vault address above. The game will automatically read from it and pay out winners!
+              <div className="mt-2 flex items-baseline space-x-2">
+                <span className="text-3xl font-black text-emerald-400">
+                  {vaultBalance !== null ? vaultBalance : 'Checking...'}
+                </span>
+                <span className="text-sm font-bold text-zinc-300">$CHOG</span>
+              </div>
+              <p className="mt-1 text-[11px] text-zinc-400 font-sans">
+                {vaultBalance && parseFloat(vaultBalance) > 0
+                  ? 'Active prize pool: Players can claim micro-bounties directly after game-over!'
+                  : 'Send $CHOG to the vault address above to activate real-time in-game rewards.'}
               </p>
             </div>
 
+            {/* Owner Actions */}
             <div className="mt-4 flex flex-wrap gap-2 text-xs">
               <a
                 href={`${targetNetwork.blockExplorer}/address/${deployedVaultAddress}`}
@@ -322,9 +409,18 @@ export default function VaultDeployerPage() {
                 <span>{targetNetwork.name} Explorer</span>
               </a>
 
+              <button
+                onClick={handleEmergencyWithdraw}
+                disabled={isWithdrawing}
+                className="flex items-center space-x-1.5 rounded-lg border border-red-500/40 bg-red-950/30 px-3 py-2 text-red-300 hover:bg-red-900/40 hover:text-red-200 transition cursor-pointer disabled:opacity-50"
+              >
+                <Lock className="h-3.5 w-3.5 text-red-400" />
+                <span>{isWithdrawing ? 'Withdrawing...' : 'Emergency Withdraw (Owner Only)'}</span>
+              </button>
+
               <Link
                 href="/"
-                className="flex items-center space-x-1.5 rounded-lg bg-emerald-500 px-4 py-2 font-black text-black hover:bg-emerald-400 transition"
+                className="flex items-center space-x-1.5 rounded-lg bg-emerald-500 px-4 py-2 font-black text-black hover:bg-emerald-400 transition ml-auto"
               >
                 <span>Back to Arcade Lobby</span>
                 <ArrowRight className="h-3.5 w-3.5" />

@@ -122,6 +122,9 @@ export interface GameConfig {
     tier: TierType;
     difficultyMultiplier: number;
     scoreMultiplier: number;
+    playerDamageMultiplier: number;
+    playerCritBonus: number;
+    playerShieldBonus: number;
     label: string;
   };
   dailyDream: {
@@ -136,6 +139,8 @@ export interface GameConfig {
 export interface RunResults {
   tokenId: number;
   chogName: string;
+  tier?: TierType;
+  tierMultiplier?: number;
   survivedSeconds: number;
   score: number;
   enemiesDefeated: number;

@@ -20,12 +20,15 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
   const [claimStatus, setClaimStatus] = useState<'idle' | 'claiming' | 'claimed'>('idle');
   const cabinetStatus = getCabinetStatus(results.skullCount);
 
-  // Micro $CHOG Bounty Calculation (Calibrated for ~$1 community prize pool)
-  const baseBounty = 0.01;
-  const bossBounty = (results.bossesDefeated || 0) * 0.02;
-  const enemyBounty = Math.min(0.015, Math.floor((results.enemiesDefeated || 0) / 10) * 0.002);
-  const victoryBounty = results.victory ? 0.05 : 0;
-  const totalChogReward = Number((baseBounty + bossBounty + enemyBounty + victoryBounty).toFixed(3));
+  // Micro $CHOG Bounty Calculation (Scaled by NFT Tier Multiplier)
+  const tierMult = results.tierMultiplier || 1.0;
+  const tierName = (results.tier || 'common').toUpperCase();
+  const baseBounty = 0.005;
+  const bossBounty = (results.bossesDefeated || 0) * 0.012;
+  const enemyBounty = Math.min(0.012, Math.floor((results.enemiesDefeated || 0) / 10) * 0.001);
+  const victoryBounty = results.victory ? 0.02 : 0;
+  const rawSubtotal = (baseBounty + bossBounty + enemyBounty + victoryBounty) * tierMult;
+  const totalChogReward = Number(Math.min(0.095, Math.max(0.005, rawSubtotal)).toFixed(3));
 
   useEffect(() => {
     if (results.victory) {
@@ -98,12 +101,12 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
           </p>
         </div>
 
-        {/* Hackathon $CHOG Bounty Reward Banner */}
+        {/* Hackathon $CHOG Bounty Reward Banner (Tier Multiplier Advantage) */}
         <div className="mt-4 rounded-xl border border-amber-500/50 bg-gradient-to-r from-amber-950/30 via-zinc-900/60 to-amber-950/30 p-3 text-center shadow-[0_0_20px_rgba(245,158,11,0.2)]">
           <div className="flex items-center justify-between font-mono text-xs">
             <span className="flex items-center space-x-1.5 font-bold uppercase text-amber-400">
               <Coins className="h-4 w-4 text-amber-400 animate-bounce" />
-              <span>Monad Hackathon $CHOG Bounty</span>
+              <span>{tierName} CARTRIDGE ({tierMult}x BOUNTY)</span>
             </span>
             <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-xs font-black text-amber-300 border border-amber-500/40">
               +{totalChogReward.toFixed(3)} $CHOG
@@ -111,10 +114,10 @@ export default function GameOverModal({ results, onRestart }: GameOverModalProps
           </div>
 
           <div className="mt-2 flex items-center justify-between text-[11px] font-mono text-zinc-400 border-t border-zinc-800/80 pt-2">
-            <span>Base: +0.010</span>
-            <span>Bosses: +{bossBounty.toFixed(3)}</span>
-            <span>Minions: +{enemyBounty.toFixed(3)}</span>
-            {results.victory && <span className="text-emerald-400 font-bold">Victory: +0.050</span>}
+            <span>Base: +{(baseBounty * tierMult).toFixed(3)}</span>
+            <span>Bosses: +{(bossBounty * tierMult).toFixed(3)}</span>
+            <span>Minions: +{(enemyBounty * tierMult).toFixed(3)}</span>
+            {results.victory && <span className="text-emerald-400 font-bold">Victory: +{(victoryBounty * tierMult).toFixed(3)}</span>}
           </div>
 
           <button

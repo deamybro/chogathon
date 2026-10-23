@@ -341,8 +341,9 @@ export class ChogScene extends Phaser.Scene {
 
     this.maxHp = this.configData.archetype.maxHealth;
     this.hp = this.maxHp;
-    this.playerMaxShield = this.configData.archetype.type === 'suit' ? 30 :
-                           this.configData.archetype.type === 'naked' ? 15 : 20;
+    const tierShieldBonus = this.configData.difficulty?.playerShieldBonus || 0;
+    this.playerMaxShield = (this.configData.archetype.type === 'suit' ? 30 :
+                           this.configData.archetype.type === 'naked' ? 15 : 20) + tierShieldBonus;
     this.playerShield = this.playerMaxShield;
     this.shieldRechargeDelayTimer = 0;
     this.playerInvulnerableTimer = 0;
@@ -1624,9 +1625,11 @@ export class ChogScene extends Phaser.Scene {
       }
 
       const starterCritBonus = this.starterPerk === 'damage' ? 0.10 : 0;
-      const isCrit = Math.random() < (this.configData.targeting.critChance + starterCritBonus);
+      const tierCritBonus = this.configData.difficulty?.playerCritBonus || 0;
+      const isCrit = Math.random() < (this.configData.targeting.critChance + starterCritBonus + tierCritBonus);
       const starterDmgMod = this.starterPerk === 'damage' ? 1.40 : 1.0;
-      const damage = Math.round((isCrit ? atk.damage * 2 : atk.damage) * starterDmgMod * this.progressionDamageMod);
+      const tierDmgMod = this.configData.difficulty?.playerDamageMultiplier || 1.0;
+      const damage = Math.round((isCrit ? atk.damage * 2 : atk.damage) * starterDmgMod * tierDmgMod * this.progressionDamageMod);
 
       soundSynth.playLaser(isCrit);
 
@@ -3263,6 +3266,8 @@ export class ChogScene extends Phaser.Scene {
     const results: RunResults = {
       tokenId: this.configData.tokenId,
       chogName: `Chog #${this.configData.tokenId}`,
+      tier: this.configData.difficulty?.tier || 'common',
+      tierMultiplier: this.configData.difficulty?.scoreMultiplier || 1.0,
       survivedSeconds: survived,
       score: this.score,
       enemiesDefeated: this.enemiesDefeated,
@@ -3292,6 +3297,8 @@ export class ChogScene extends Phaser.Scene {
     const results: RunResults = {
       tokenId: this.configData.tokenId,
       chogName: `Chog #${this.configData.tokenId}`,
+      tier: this.configData.difficulty?.tier || 'common',
+      tierMultiplier: this.configData.difficulty?.scoreMultiplier || 1.0,
       survivedSeconds: Math.round(this.totalSurvivedSeconds),
       score: this.score + 10000,
       enemiesDefeated: this.enemiesDefeated,

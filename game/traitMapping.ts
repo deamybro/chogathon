@@ -333,31 +333,43 @@ export function deriveGameConfig(
     },
   };
 
-  // Tier (Difficulty & Multiplier)
+  // Tier (Equal High Stage Challenge + NFT Combat & Reward Advantage)
   const tierMap = {
     common: {
       tier: 'common' as const,
-      difficultyMultiplier: 1.0,
+      difficultyMultiplier: 1.0, // Standardized high arcade swarm difficulty for everyone
       scoreMultiplier: 1.0,
-      label: 'Common (Standard Run)',
+      playerDamageMultiplier: 1.0,
+      playerCritBonus: 0.0,
+      playerShieldBonus: 0,
+      label: 'Common (Baseline Gear • 1.0x Rewards)',
     },
     rare: {
       tier: 'rare' as const,
-      difficultyMultiplier: 1.25,
-      scoreMultiplier: 1.5,
-      label: 'Rare (+25% Danger / +50% Score)',
+      difficultyMultiplier: 1.0,
+      scoreMultiplier: 1.6,
+      playerDamageMultiplier: 1.25,
+      playerCritBonus: 0.08,
+      playerShieldBonus: 20,
+      label: 'Rare (+25% DMG • +20 Shield • 1.6x Rewards)',
     },
     epic: {
       tier: 'epic' as const,
-      difficultyMultiplier: 1.55,
-      scoreMultiplier: 2.2,
-      label: 'Epic (+55% Danger / +120% Score)',
+      difficultyMultiplier: 1.0,
+      scoreMultiplier: 2.4,
+      playerDamageMultiplier: 1.50,
+      playerCritBonus: 0.16,
+      playerShieldBonus: 45,
+      label: 'Epic (+50% DMG • +45 Shield • 2.4x Rewards)',
     },
     legendary: {
       tier: 'legendary' as const,
-      difficultyMultiplier: 1.95,
-      scoreMultiplier: 3.5,
-      label: 'Legendary (Overclocked Chaos / 3.5x Score)',
+      difficultyMultiplier: 1.0,
+      scoreMultiplier: 3.8,
+      playerDamageMultiplier: 1.80,
+      playerCritBonus: 0.25,
+      playerShieldBonus: 75,
+      label: 'Legendary (+80% Overcharged DMG • +75 Shield • 3.8x Rewards)',
     },
   };
 
@@ -413,6 +425,9 @@ export function deriveGameConfig(
       tier: selectedTier.tier,
       difficultyMultiplier: selectedTier.difficultyMultiplier * dailyMod.enemySpeedMultiplier,
       scoreMultiplier: Math.round(selectedTier.scoreMultiplier * auraBonusScore * 100) / 100,
+      playerDamageMultiplier: selectedTier.playerDamageMultiplier,
+      playerCritBonus: selectedTier.playerCritBonus,
+      playerShieldBonus: selectedTier.playerShieldBonus,
       label: selectedTier.label,
     },
     dailyDream: dailyMod,
