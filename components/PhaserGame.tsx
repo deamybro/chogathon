@@ -128,9 +128,26 @@ const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
       }
     }, [touchVector]);
 
+    // Handle dynamic resize on device orientation change or window resize
+    useEffect(() => {
+      const handleResize = () => {
+        if (gameRef.current && gameRef.current.scale) {
+          gameRef.current.scale.refresh();
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('orientationchange', handleResize);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('orientationchange', handleResize);
+      };
+    }, []);
+
     return (
-      <div className="relative flex w-full items-center justify-center overflow-hidden bg-black aspect-[4/3] max-h-[600px]">
-        <div ref={containerRef} className="w-full h-full flex items-center justify-center" />
+      <div className="relative flex w-full h-full items-center justify-center overflow-hidden bg-black select-none touch-none aspect-[4/3] max-h-[85vh]">
+        <div ref={containerRef} className="w-full h-full flex items-center justify-center [&>canvas]:max-w-full [&>canvas]:max-h-full [&>canvas]:object-contain" />
       </div>
     );
   }

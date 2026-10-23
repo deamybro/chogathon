@@ -518,7 +518,7 @@ export default function PlayClient({
   const hpPercent = Math.max(0, Math.min(100, (hp / maxHp) * 100));
 
   return (
-    <div className="mx-auto max-w-7xl px-1 py-1 sm:px-6 sm:py-6">
+    <div className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-4">
       <ArcadeCabinetFrame
         cabinetStatus={cabinetStatus}
         bestScore={bestScore}
@@ -637,20 +637,20 @@ export default function PlayClient({
           </div>
 
           {/* CENTER: PHASER CANVAS (col-span-6) */}
-          <div className="order-1 lg:order-2 relative lg:col-span-6 flex flex-col bg-black">
+          <div className="order-1 lg:order-2 relative lg:col-span-6 flex flex-col bg-black w-full min-h-[300px]">
             {/* TOP DOCKED COMBAT DASHBOARD (Always visible during gameplay, zero canvas overlap!) */}
             {hasStarted && !runResults && (
-              <div className="w-full bg-zinc-950/95 border-b border-zinc-800 px-3 py-1.5 z-20">
-                <div className="flex flex-wrap items-center justify-between gap-2 max-w-xl mx-auto">
+              <div className="w-full bg-zinc-950/95 border-b border-zinc-800 px-2 sm:px-3 py-1 sm:py-1.5 z-20">
+                <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2 max-w-xl mx-auto">
                   {/* Vitality & Kinetic Shield Gauges */}
-                  <div className="flex items-center space-x-2.5">
+                  <div className="flex items-center space-x-1.5 sm:space-x-2.5">
                     {/* Vitality Gauge */}
-                    <div className="flex items-center space-x-1.5">
-                      <div className="flex items-center space-x-1 text-red-400 font-mono text-[10px] sm:text-xs font-black">
-                        <Heart className="h-3.5 w-3.5 fill-current text-red-500 shrink-0" />
+                    <div className="flex items-center space-x-1 sm:space-x-1.5">
+                      <div className="flex items-center space-x-0.5 sm:space-x-1 text-red-400 font-mono text-[9px] sm:text-xs font-black">
+                        <Heart className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-current text-red-500 shrink-0" />
                         <span>{Math.round(hp)}/{maxHp}</span>
                       </div>
-                      <div className="h-2 w-16 sm:w-20 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
+                      <div className="h-1.5 sm:h-2 w-12 sm:w-20 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
                         <div
                           style={{ width: `${hpPercent}%` }}
                           className={`h-full transition-all duration-150 ${
@@ -666,12 +666,12 @@ export default function PlayClient({
 
                     {/* Kinetic Barrier Shield Gauge */}
                     {playerShield.max > 0 && (
-                      <div className="flex items-center space-x-1.5">
-                        <div className="flex items-center space-x-1 text-cyan-400 font-mono text-[10px] sm:text-xs font-black">
-                          <Shield className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                      <div className="flex items-center space-x-1 sm:space-x-1.5">
+                        <div className="flex items-center space-x-0.5 sm:space-x-1 text-cyan-400 font-mono text-[9px] sm:text-xs font-black">
+                          <Shield className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-cyan-400 shrink-0" />
                           <span>{Math.round(playerShield.current)}/{playerShield.max}</span>
                         </div>
-                        <div className="h-2 w-12 sm:w-16 overflow-hidden rounded-full bg-zinc-900 border border-cyan-800/80">
+                        <div className="h-1.5 sm:h-2 w-10 sm:w-16 overflow-hidden rounded-full bg-zinc-900 border border-cyan-800/80">
                           <div
                             style={{ width: `${Math.max(0, Math.min(100, (playerShield.current / playerShield.max) * 100))}%` }}
                             className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 shadow-[0_0_8px_rgba(56,189,248,0.7)] transition-all duration-150"
@@ -687,23 +687,23 @@ export default function PlayClient({
                       <button
                         type="button"
                         onClick={handleTriggerUltimate}
-                        className="flex items-center space-x-1.5 rounded-full border border-amber-400 bg-amber-500/20 px-3 py-0.5 font-mono text-[10px] sm:text-xs font-black text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] animate-pulse hover:bg-amber-500/30 transition cursor-pointer"
+                        className="flex items-center space-x-1 rounded-full border border-amber-400 bg-amber-500/20 px-2 sm:px-3 py-0.5 font-mono text-[9px] sm:text-xs font-black text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] animate-pulse hover:bg-amber-500/30 transition cursor-pointer"
                       >
                         <Sparkles className="h-3 w-3 fill-current text-amber-400" />
-                        <span>ULTIMATE READY [F/SPACE]</span>
+                        <span>ULT READY [F/SPACE]</span>
                       </button>
                     ) : essence.isActive ? (
-                      <div className="flex items-center space-x-1.5 rounded-full border border-amber-400 bg-black/90 px-2.5 py-0.5 font-mono text-[10px] font-black text-amber-300 animate-pulse">
+                      <div className="flex items-center space-x-1 rounded-full border border-amber-400 bg-black/90 px-2 py-0.5 font-mono text-[9px] font-black text-amber-300 animate-pulse">
                         <Flame className="h-3 w-3 text-amber-400" />
-                        <span>BURNING ULTIMATE</span>
+                        <span>BURNING ULT</span>
                       </div>
                     ) : (
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-1 text-cyan-400 font-mono text-[10px] sm:text-xs font-black">
-                          <Star className="h-3 w-3 text-cyan-400 shrink-0" />
+                      <div className="flex items-center space-x-1.5 sm:space-x-2">
+                        <div className="flex items-center space-x-1 text-cyan-400 font-mono text-[9px] sm:text-xs font-black">
+                          <Star className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-cyan-400 shrink-0" />
                           <span>ULT {essence.current}%</span>
                         </div>
-                        <div className="h-2 w-16 sm:w-20 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
+                        <div className="h-1.5 sm:h-2 w-12 sm:w-20 overflow-hidden rounded-full bg-zinc-900 border border-zinc-800">
                           <div
                             style={{ width: `${essence.current}%` }}
                             className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-150"
@@ -714,7 +714,7 @@ export default function PlayClient({
                   </div>
 
                   {/* Sector Timer, Score & Starter Perk */}
-                  <div className="flex items-center space-x-2 font-mono text-[10px] sm:text-xs">
+                  <div className="flex items-center space-x-1.5 sm:space-x-2 font-mono text-[9px] sm:text-xs">
                     <span className="text-zinc-500">S{levelInfo.current}:</span>
                     <span className={`font-black ${timeRemaining <= 10 ? 'text-red-400 animate-pulse' : 'text-purple-300'}`}>
                       {timeRemaining}s
@@ -723,7 +723,7 @@ export default function PlayClient({
                       {score.toLocaleString()} PTS
                     </span>
                     {selectedStarterAugment && (
-                      <span className={`rounded px-1.5 py-0.5 text-[8px] font-black ${STARTER_AUGMENTS[selectedStarterAugment].bgBadge}`}>
+                      <span className={`rounded px-1 sm:px-1.5 py-0.5 text-[7px] sm:text-[8px] font-black ${STARTER_AUGMENTS[selectedStarterAugment].bgBadge}`}>
                         {STARTER_AUGMENTS[selectedStarterAugment].shortLabel}
                       </span>
                     )}
@@ -732,7 +732,7 @@ export default function PlayClient({
               </div>
             )}
 
-            <div className="relative flex flex-col items-center justify-center bg-black min-h-[380px] sm:min-h-[420px]">
+            <div className="relative flex flex-1 w-full flex-col items-center justify-center bg-black min-h-[280px]">
               {/* Boss Health & Barrier Shield Bar Overlay */}
               {bossInfo && (
                 <div className="absolute top-2 left-3 right-3 sm:left-4 sm:right-4 z-30 rounded-xl border-2 border-purple-500 bg-black/95 p-2 sm:p-2.5 backdrop-blur-md shadow-[0_0_25px_rgba(168,85,247,0.7)] animate-in fade-in">

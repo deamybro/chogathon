@@ -126,13 +126,13 @@ export default function MobileControls({
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-3 left-0 right-0 z-50 flex lg:hidden items-end justify-between px-3 sm:px-6 pointer-events-none select-none touch-none">
+    <div className="fixed bottom-2 left-0 right-0 z-50 flex lg:hidden items-end justify-between px-2 sm:px-6 pointer-events-none select-none touch-none pb-[env(safe-area-inset-bottom,0px)]">
       {/* Left Thumb: Virtual Joystick */}
       <div className="pointer-events-auto">
         <div
           ref={joystickRef}
           onTouchStart={handleJoystickStart}
-          className="relative flex h-28 w-28 items-center justify-center rounded-full border-2 border-emerald-500/70 bg-black/85 shadow-[0_0_25px_rgba(34,197,94,0.35)] backdrop-blur-md active:scale-95 transition-transform"
+          className="relative flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center rounded-full border-2 border-emerald-500/70 bg-black/85 shadow-[0_0_25px_rgba(34,197,94,0.35)] backdrop-blur-md active:scale-95 transition-transform"
         >
           {/* Subtle directional indicators */}
           <span className="absolute top-1 text-[8px] font-mono text-emerald-500/50">▲</span>
@@ -143,24 +143,24 @@ export default function MobileControls({
           {/* Center Movable Thumb Knob */}
           <div
             style={{ transform: `translate(${knobPos.x}px, ${knobPos.y}px)` }}
-            className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-emerald-300 bg-gradient-to-br from-emerald-400 to-green-600 shadow-[0_0_15px_rgba(34,197,94,0.8)]"
+            className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full border-2 border-emerald-300 bg-gradient-to-br from-emerald-400 to-green-600 shadow-[0_0_15px_rgba(34,197,94,0.8)]"
           >
-            <div className="h-3 w-3 rounded-full bg-white/70" />
+            <div className="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-white/70" />
           </div>
-          <span className="absolute bottom-3 text-[7px] font-mono font-bold tracking-widest text-emerald-400/80">
+          <span className="absolute bottom-2 sm:bottom-3 text-[7px] font-mono font-bold tracking-widest text-emerald-400/80">
             STEER
           </span>
         </div>
       </div>
 
       {/* Right Thumb: Ergonomic Action Buttons */}
-      <div className="pointer-events-auto flex items-end space-x-2">
+      <div className="pointer-events-auto flex items-end space-x-1.5 sm:space-x-2">
         {/* Auto-Aim Toggle Button */}
         {onToggleAutoAim && (
           <button
             type="button"
             onClick={onToggleAutoAim}
-            className={`flex h-12 w-12 flex-col items-center justify-center rounded-full border font-mono transition-transform active:scale-90 backdrop-blur-md ${
+            className={`flex h-11 w-11 sm:h-12 sm:w-12 flex-col items-center justify-center rounded-full border font-mono transition-transform active:scale-90 backdrop-blur-md ${
               isAimScrambled
                 ? 'border-red-500 bg-red-950/80 text-red-400 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]'
                 : autoAimEnabled
@@ -168,7 +168,7 @@ export default function MobileControls({
                 : 'border-zinc-700 bg-black/80 text-zinc-500'
             }`}
           >
-            <Crosshair className={`h-4 w-4 ${isAimScrambled ? 'animate-spin' : ''}`} />
+            <Crosshair className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isAimScrambled ? 'animate-spin' : ''}`} />
             <span className="text-[7px] font-black leading-none mt-0.5">
               {isAimScrambled ? 'EMP' : autoAimEnabled ? 'AUTO' : 'MAN'}
             </span>
@@ -181,21 +181,21 @@ export default function MobileControls({
           onClick={handleAbilityTap}
           onTouchStart={handleAbilityTap}
           disabled={!abilityReady}
-          className={`flex h-16 w-16 flex-col items-center justify-center rounded-full border-2 font-mono transition-all active:scale-90 backdrop-blur-md ${
+          className={`flex h-14 w-14 sm:h-16 sm:w-16 flex-col items-center justify-center rounded-full border-2 font-mono transition-all active:scale-90 backdrop-blur-md ${
             abilityReady
               ? 'border-emerald-400 bg-emerald-500/30 text-emerald-300 shadow-[0_0_20px_rgba(34,197,94,0.6)] animate-pulse'
               : 'border-zinc-800 bg-zinc-950/80 text-zinc-500 opacity-60'
           }`}
         >
           {abilityReady ? (
-            <Zap className="h-6 w-6 text-emerald-400 fill-current" />
+            <Zap className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-400 fill-current" />
           ) : (
-            <Shield className="h-5 w-5 text-zinc-500" />
+            <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-zinc-500" />
           )}
-          <span className="text-[9px] font-black leading-none mt-0.5">
+          <span className="text-[8px] sm:text-[9px] font-black leading-none mt-0.5">
             {abilityReady ? 'SKILL' : `${abilityCooldown}s`}
           </span>
-          <span className="text-[7px] font-mono text-zinc-400 truncate max-w-[50px] leading-tight mt-0.5">
+          <span className="text-[6.5px] sm:text-[7px] font-mono text-zinc-400 truncate max-w-[45px] sm:max-w-[50px] leading-tight mt-0.5">
             {abilityName.split(' ')[0]}
           </span>
         </button>
@@ -207,17 +207,17 @@ export default function MobileControls({
             onClick={handleUltimateTap}
             onTouchStart={handleUltimateTap}
             disabled={!isUltimateReady}
-            className={`flex h-16 w-16 flex-col items-center justify-center rounded-full border-2 font-mono transition-all active:scale-90 backdrop-blur-md ${
+            className={`flex h-14 w-14 sm:h-16 sm:w-16 flex-col items-center justify-center rounded-full border-2 font-mono transition-all active:scale-90 backdrop-blur-md ${
               isUltimateReady
                 ? 'border-amber-400 bg-gradient-to-br from-amber-500 to-yellow-400 text-black shadow-[0_0_30px_rgba(245,158,11,0.9)] animate-bounce font-black'
                 : 'border-zinc-800 bg-zinc-950/80 text-zinc-600 opacity-40'
             }`}
           >
-            <Star className={`h-6 w-6 ${isUltimateReady ? 'fill-current text-black' : ''}`} />
-            <span className="text-[8px] font-black leading-none mt-0.5">
+            <Star className={`h-5 w-5 sm:h-6 sm:w-6 ${isUltimateReady ? 'fill-current text-black' : ''}`} />
+            <span className="text-[7.5px] sm:text-[8px] font-black leading-none mt-0.5">
               {isUltimateReady ? 'ULT!' : 'CHARGE'}
             </span>
-            <span className="text-[7px] font-mono leading-tight mt-0.5">
+            <span className="text-[6.5px] sm:text-[7px] font-mono leading-tight mt-0.5">
               {isUltimateReady ? 'READY' : 'SIGNATURE'}
             </span>
           </button>

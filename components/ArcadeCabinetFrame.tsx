@@ -16,9 +16,9 @@ export default function ArcadeCabinetFrame({
   tokenId,
 }: ArcadeCabinetFrameProps) {
   return (
-    <div className={`relative mx-auto w-full max-w-5xl rounded-2xl border-4 bg-zinc-950 p-2 sm:p-4 transition duration-500 ${cabinetStatus.glowClass}`}>
+    <div className={`relative mx-auto w-full max-w-5xl rounded-none sm:rounded-2xl border-0 sm:border-4 bg-zinc-950 p-1 sm:p-4 transition duration-500 ${cabinetStatus.glowClass}`}>
       {/* Cabinet Marquee / Header Bar */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+      <div className="mb-2 sm:mb-3 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 border-b border-zinc-800 pb-2 sm:pb-3">
         {/* Left: Coin & Title */}
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-1.5 rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[11px] font-mono text-zinc-300">
