@@ -333,43 +333,43 @@ export function deriveGameConfig(
     },
   };
 
-  // Tier (Equal High Stage Challenge + NFT Combat & Reward Advantage)
+  // Tier (High Arcade Swarm Threat + NFT Combat Rarity Scaling & Massive Payouts)
   const tierMap = {
     common: {
       tier: 'common' as const,
-      difficultyMultiplier: 1.0, // Standardized high arcade swarm difficulty for everyone
+      difficultyMultiplier: 1.25, // Intensified baseline danger across all sectors
       scoreMultiplier: 1.0,
       playerDamageMultiplier: 1.0,
       playerCritBonus: 0.0,
       playerShieldBonus: 0,
-      label: 'Common (Baseline Gear • 1.0x Rewards)',
+      label: 'Common (Recruit Hull • 1.0x Rewards)',
     },
     rare: {
       tier: 'rare' as const,
-      difficultyMultiplier: 1.0,
-      scoreMultiplier: 1.6,
-      playerDamageMultiplier: 1.25,
-      playerCritBonus: 0.08,
-      playerShieldBonus: 20,
-      label: 'Rare (+25% DMG • +20 Shield • 1.6x Rewards)',
+      difficultyMultiplier: 1.45,
+      scoreMultiplier: 1.7,
+      playerDamageMultiplier: 1.15,
+      playerCritBonus: 0.05,
+      playerShieldBonus: 15,
+      label: 'Rare (+45% Swarm Threat • +15 Shield • 1.7x Rewards)',
     },
     epic: {
       tier: 'epic' as const,
-      difficultyMultiplier: 1.0,
-      scoreMultiplier: 2.4,
-      playerDamageMultiplier: 1.50,
-      playerCritBonus: 0.16,
-      playerShieldBonus: 45,
-      label: 'Epic (+50% DMG • +45 Shield • 2.4x Rewards)',
+      difficultyMultiplier: 1.70,
+      scoreMultiplier: 2.6,
+      playerDamageMultiplier: 1.25,
+      playerCritBonus: 0.10,
+      playerShieldBonus: 25,
+      label: 'Epic (+70% Swarm Threat • +25 Shield • 2.6x Rewards)',
     },
     legendary: {
       tier: 'legendary' as const,
-      difficultyMultiplier: 1.0,
-      scoreMultiplier: 3.8,
-      playerDamageMultiplier: 1.80,
-      playerCritBonus: 0.25,
-      playerShieldBonus: 75,
-      label: 'Legendary (+80% Overcharged DMG • +75 Shield • 3.8x Rewards)',
+      difficultyMultiplier: 2.10, // Extreme Overclocked Chaos & relentless swarm speed/HP
+      scoreMultiplier: 4.2,
+      playerDamageMultiplier: 1.40,
+      playerCritBonus: 0.15,
+      playerShieldBonus: 40,
+      label: 'Legendary (Overclocked Chaos: 2.1x Threat • 4.2x Vault Payouts)',
     },
   };
 

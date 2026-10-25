@@ -1825,16 +1825,16 @@ export class ChogScene extends Phaser.Scene {
     const isHyperRush = this.levelTimeRemaining <= 10;
     // Faster spawn intervals and higher enemy density in higher sectors
     // Escalating rush intensity: each rush is far more deadly and swarming than the last!
-    const rushDensity = this.currentLevel === 1 ? 2.5 : this.currentLevel === 2 ? 3.8 : 5.5;
-    const baseDensity = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.35 : 1.6;
+    const rushDensity = this.currentLevel === 1 ? 2.8 : this.currentLevel === 2 ? 4.2 : 6.0;
+    const baseDensity = (this.currentLevel === 1 ? 1.25 : this.currentLevel === 2 ? 1.6 : 2.0) * this.configData.difficulty.difficultyMultiplier;
     const densityMult = baseDensity * (isHyperRush ? rushDensity : 1.0);
     const minInterval = isHyperRush
-      ? (this.currentLevel === 1 ? 0.12 : this.currentLevel === 2 ? 0.08 : 0.05)
-      : 0.25;
+      ? (this.currentLevel === 1 ? 0.09 : this.currentLevel === 2 ? 0.06 : 0.04)
+      : 0.18;
     const spawnInterval = Phaser.Math.Clamp(
-      ((1.4 - (elapsed / 60) * 1.0) / (this.configData.dailyDream.spawnRateMultiplier * densityMult)),
+      ((1.2 - (elapsed / 60) * 0.9) / (this.configData.dailyDream.spawnRateMultiplier * densityMult)),
       minInterval,
-      1.8
+      1.5
     ) * 1000;
 
     if (now >= this.nextSpawnTime) {
@@ -3047,26 +3047,27 @@ export class ChogScene extends Phaser.Scene {
     const container = this.add.container(x, y);
 
     const levelSpeedFactor = this.currentLevel === 1 ? 1.0 : this.currentLevel === 2 ? 1.3 : 1.5;
-    let hp = 15;
+    const diffMod = this.configData.difficulty.difficultyMultiplier || 1.0;
+    let hp = Math.round(18 * diffMod);
     let speed = 90 * levelSpeedFactor;
     let scoreVal = 100;
 
     if (type === 'wasp') {
-      hp = 12;
-      speed = 105;
+      hp = Math.round(16 * diffMod);
+      speed = 115;
       scoreVal = 150;
       const waspBody = this.add.triangle(0, 0, 0, -12, 12, 12, -12, 12, 0xf59e0b);
       container.add(waspBody);
     } else if (type === 'brute') {
-      hp = 65;
-      speed = 50;
+      hp = Math.round(85 * diffMod);
+      speed = 58;
       scoreVal = 300;
       const bruteBody = this.add.rectangle(0, 0, 28, 28, 0xef4444);
       bruteBody.setStrokeStyle(2, 0xffffff);
       container.add(bruteBody);
     } else {
-      hp = 18;
-      speed = 75;
+      hp = Math.round(22 * diffMod);
+      speed = 85;
       scoreVal = 100;
       const droneBody = this.add.circle(0, 0, 12, 0x8b5cf6);
       droneBody.setStrokeStyle(1.5, 0xc084fc);
