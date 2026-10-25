@@ -5,11 +5,23 @@
   --foreground: #ededed;
 }
 
+html,
 body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
   background: var(--background);
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  overflow-x: hidden;
+}
+
+/* Hide scrollbar for clean horizontal navbar scrolling on small devices */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* CRT and Arcade Glow Utilities */

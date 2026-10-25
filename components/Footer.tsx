@@ -3,19 +3,19 @@ import Link from 'next/link';
 
 export default function Footer() {
   return (
-    <footer className="mt-auto border-t border-zinc-800/80 bg-zinc-950/90 py-8 text-zinc-400">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+    <footer className="mt-auto border-t border-zinc-800/80 bg-zinc-950/90 py-6 sm:py-8 text-zinc-400 max-w-full overflow-hidden">
+      <div className="mx-auto max-w-7xl px-3 sm:px-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
           <div>
-            <p className="font-mono text-sm font-bold text-white tracking-wide">
+            <p className="font-mono text-xs sm:text-sm font-bold text-white tracking-wide">
               CHOG969 — THE LIVING CARTRIDGE ARCADE
             </p>
-            <p className="mt-1 text-xs text-zinc-500 max-w-md">
+            <p className="mt-1 text-[11px] sm:text-xs text-zinc-500 max-w-md">
               Every Chog NFT is an authentic 60-second top-down arcade cartridge. Deterministic mechanics generated from on-chain traits + token ID.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-6 text-xs font-medium">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs font-medium">
             <Link href="/" className="hover:text-emerald-400 transition">
               Home
             </Link>
@@ -31,9 +31,9 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-6 border-t border-zinc-900 pt-4 flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-600">
+        <div className="mt-4 sm:mt-6 border-t border-zinc-900 pt-3 sm:pt-4 flex flex-col sm:flex-row items-center justify-between text-[10px] sm:text-[11px] text-zinc-600">
           <span>Solo-playable instantly. Zero wallet connection required. No staking or gambling.</span>
-          <span className="font-mono mt-2 sm:mt-0">Token Range: #1 – #1969</span>
+          <span className="font-mono mt-1 sm:mt-0">Token Range: #1 – #1969</span>
         </div>
       </div>
     </footer>

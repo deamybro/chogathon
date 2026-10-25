@@ -146,8 +146,8 @@ const PhaserGame = forwardRef<PhaserGameHandle, PhaserGameProps>(
     }, []);
 
     return (
-      <div className="relative flex w-full h-full items-center justify-center overflow-hidden bg-black select-none touch-none aspect-[4/3] max-h-[85vh]">
-        <div ref={containerRef} className="w-full h-full flex items-center justify-center [&>canvas]:max-w-full [&>canvas]:max-h-full [&>canvas]:object-contain" />
+      <div className="relative flex w-full items-center justify-center overflow-hidden bg-black select-none touch-none aspect-[4/3] max-h-[62vh] sm:max-h-[85vh]">
+        <div ref={containerRef} className="w-full h-full flex items-center justify-center [&>canvas]:max-w-full [&>canvas]:max-h-full [&>canvas]:w-full [&>canvas]:h-full [&>canvas]:object-contain" />
       </div>
     );
   }

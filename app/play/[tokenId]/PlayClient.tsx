@@ -526,7 +526,7 @@ export default function PlayClient({
       >
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800 bg-zinc-950">
           {/* LEFT PANEL: NFT ART & SIGNATURE SKILL (col-span-3) */}
-          <div className={`${hasStarted && !showMobileDetails ? 'hidden lg:flex' : 'flex'} order-2 lg:order-1 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-4`}>
+          <div className={`${hasStarted ? (showMobileDetails ? 'flex' : 'hidden lg:flex') : 'hidden lg:flex'} order-2 lg:order-1 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-4`}>
             <div>
               {/* Token Header */}
               <div className="flex items-center justify-between">
@@ -970,23 +970,24 @@ export default function PlayClient({
                     )}
                   </button>
 
-                  {/* Controls hint */}
-                  <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2 text-[10px] font-mono text-zinc-400 text-left space-y-0.5">
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Move / Aim:</span>
-                      <span className="text-zinc-200">WASD / Arrow Keys • Mouse Aim</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Hero Ability:</span>
-                      <span className="text-emerald-400">Spacebar ({gameConfig.signatureSkill.name})</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Avatar Ultimate:</span>
-                      <span className="text-amber-400">[F] / Spacebar at 100% Charge</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Targeting:</span>
-                      <span className="text-cyan-300">[T] Toggle Auto / Manual</span>
+                    {/* Controls hint */}
+                    <div className="mt-2.5 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2 text-[10px] font-mono text-zinc-400 text-left space-y-0.5">
+                      <div className="flex justify-between sm:hidden text-emerald-400 font-bold">
+                        <span>Mobile Controls:</span>
+                        <span>Touch Virtual Joystick + Action Buttons</span>
+                      </div>
+                      <div className="hidden sm:flex justify-between">
+                        <span className="text-zinc-500">Move / Aim:</span>
+                        <span className="text-zinc-200">WASD / Arrow Keys • Mouse Aim</span>
+                      </div>
+                      <div className="hidden sm:flex justify-between">
+                        <span className="text-zinc-500">Hero Ability:</span>
+                        <span className="text-emerald-400">Spacebar ({gameConfig.signatureSkill.name})</span>
+                      </div>
+                      <div className="hidden sm:flex justify-between">
+                        <span className="text-zinc-500">Avatar Ultimate:</span>
+                        <span className="text-amber-400">[F] / Spacebar at 100% Charge</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1009,7 +1010,7 @@ export default function PlayClient({
           </div>
 
           {/* RIGHT PANEL: HUD, BONUS SKILLS & RUN CONTROLS (col-span-3) */}
-          <div className={`${hasStarted && !showMobileDetails ? 'hidden lg:flex' : 'flex'} order-3 lg:order-3 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-3 pb-32 lg:pb-0`}>
+          <div className={`${hasStarted ? (showMobileDetails ? 'flex' : 'hidden lg:flex') : 'hidden lg:flex'} order-3 lg:order-3 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-3 pb-32 lg:pb-0`}>
             <div className="space-y-3">
               {/* Multi-Level Sector Escalation Block */}
               <div className="rounded-xl border border-purple-500/40 bg-purple-950/20 p-2.5">

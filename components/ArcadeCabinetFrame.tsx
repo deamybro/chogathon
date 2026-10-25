@@ -60,7 +60,7 @@ export default function ArcadeCabinetFrame({
       </div>
 
       {/* Cabinet Bottom Control Decal / Vent */}
-      <div className="mt-3 flex items-center justify-between px-2 text-[10px] font-mono text-zinc-600">
+      <div className="mt-2 sm:mt-3 hidden sm:flex items-center justify-between px-2 text-[10px] font-mono text-zinc-600">
         <div className="flex items-center space-x-2">
           <span>STEREO AUDIO</span>
           <span>•</span>
