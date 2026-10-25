@@ -333,43 +333,45 @@ export function deriveGameConfig(
     },
   };
 
-  // Tier (High Arcade Swarm Threat + NFT Combat Rarity Scaling & Massive Payouts)
+  // Tier (Universal Hardest Level Challenge For All NFTs + Rarity Payout Multipliers)
+  const UNIFIED_HARDEST_DIFFICULTY = 2.0; // Everyone faces the hardest, relentless swarm difficulty
+
   const tierMap = {
     common: {
       tier: 'common' as const,
-      difficultyMultiplier: 1.25, // Intensified baseline danger across all sectors
+      difficultyMultiplier: UNIFIED_HARDEST_DIFFICULTY,
       scoreMultiplier: 1.0,
       playerDamageMultiplier: 1.0,
       playerCritBonus: 0.0,
       playerShieldBonus: 0,
-      label: 'Common (Recruit Hull • 1.0x Rewards)',
+      label: 'Common (Standard Cartridge • 1.0x Rewards)',
     },
     rare: {
       tier: 'rare' as const,
-      difficultyMultiplier: 1.45,
-      scoreMultiplier: 1.7,
+      difficultyMultiplier: UNIFIED_HARDEST_DIFFICULTY,
+      scoreMultiplier: 1.8,
       playerDamageMultiplier: 1.15,
       playerCritBonus: 0.05,
       playerShieldBonus: 15,
-      label: 'Rare (+45% Swarm Threat • +15 Shield • 1.7x Rewards)',
+      label: 'Rare (+15% DMG • +15 Shield • 1.8x Rewards)',
     },
     epic: {
       tier: 'epic' as const,
-      difficultyMultiplier: 1.70,
-      scoreMultiplier: 2.6,
-      playerDamageMultiplier: 1.25,
+      difficultyMultiplier: UNIFIED_HARDEST_DIFFICULTY,
+      scoreMultiplier: 2.8,
+      playerDamageMultiplier: 1.30,
       playerCritBonus: 0.10,
-      playerShieldBonus: 25,
-      label: 'Epic (+70% Swarm Threat • +25 Shield • 2.6x Rewards)',
+      playerShieldBonus: 30,
+      label: 'Epic (+30% DMG • +30 Shield • 2.8x Rewards)',
     },
     legendary: {
       tier: 'legendary' as const,
-      difficultyMultiplier: 2.10, // Extreme Overclocked Chaos & relentless swarm speed/HP
-      scoreMultiplier: 4.2,
-      playerDamageMultiplier: 1.40,
+      difficultyMultiplier: UNIFIED_HARDEST_DIFFICULTY,
+      scoreMultiplier: 4.5,
+      playerDamageMultiplier: 1.45,
       playerCritBonus: 0.15,
-      playerShieldBonus: 40,
-      label: 'Legendary (Overclocked Chaos: 2.1x Threat • 4.2x Vault Payouts)',
+      playerShieldBonus: 45,
+      label: 'Legendary (+45% Overcharged DMG • +45 Shield • 4.5x Vault Payouts)',
     },
   };
 
