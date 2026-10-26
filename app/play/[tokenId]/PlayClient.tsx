@@ -526,7 +526,7 @@ export default function PlayClient({
       >
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800 bg-zinc-950">
           {/* LEFT PANEL: NFT ART & SIGNATURE SKILL (col-span-3) */}
-          <div className={`${hasStarted && !showMobileDetails ? 'hidden lg:flex' : 'flex'} order-2 lg:order-1 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-4`}>
+          <div className={`${showMobileDetails ? 'flex' : 'hidden lg:flex'} order-2 lg:order-1 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-4`}>
             <div>
               {/* Token Header */}
               <div className="flex items-center justify-between">
@@ -1009,7 +1009,7 @@ export default function PlayClient({
           </div>
 
           {/* RIGHT PANEL: HUD, BONUS SKILLS & RUN CONTROLS (col-span-3) */}
-          <div className={`${hasStarted && !showMobileDetails ? 'hidden lg:flex' : 'flex'} order-3 lg:order-3 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-3 pb-32 lg:pb-0`}>
+          <div className={`${showMobileDetails ? 'flex' : 'hidden lg:flex'} order-3 lg:order-3 p-3.5 sm:p-4 lg:col-span-3 flex-col justify-between space-y-3 pb-32 lg:pb-0`}>
             <div className="space-y-3">
               {/* Multi-Level Sector Escalation Block */}
               <div className="rounded-xl border border-purple-500/40 bg-purple-950/20 p-2.5">
